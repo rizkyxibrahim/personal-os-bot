@@ -1,3 +1,3 @@
 export function rupiah(n: number): string {
-  return "Rp " + n.toLocaleString("id-ID");
+  return (n < 0 ? "-" : "") + "Rp " + Math.abs(n).toLocaleString("id-ID");
 }

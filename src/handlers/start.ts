@@ -1,24 +1,8 @@
 import type { Bot } from "grammy";
 import type { Env } from "../env";
-import { getBalance, getToday } from "../db";
+import { todayJakarta } from "../dates";
 import { rupiah } from "../format";
-
-export const HELP_TEXT = [
-  "📖 Perintah yang tersedia",
-  "",
-  "Keuangan:",
-  "/in 5jt gaji — catat pemasukan",
-  "/out 25000 makan siang #makan — catat pengeluaran",
-  "/saldo — lihat saldo",
-  "/hariini — transaksi hari ini",
-  "/hapus 12 — hapus transaksi nomor 12",
-  "",
-  "Umum:",
-  "/start — dashboard hari ini",
-  "/help — daftar perintah ini",
-  "",
-  "Segera hadir: tugas, berita, saham, email, laporan bulanan, struk.",
-].join("\n");
+import * as q from "../finance/queries";
 
 function todayLabel(): string {
   return new Intl.DateTimeFormat("id-ID", {
@@ -30,32 +14,36 @@ function todayLabel(): string {
   }).format(new Date());
 }
 
-async function balanceSection(env: Env): Promise<string> {
-  const [balance, today] = await Promise.all([
-    getBalance(env.DB),
-    getToday(env.DB),
+async function balanceSection(env: Env, userId: number): Promise<string> {
+  await q.ensureDefaults(env.DB, userId);
+  const [accounts, todayTx] = await Promise.all([
+    q.listAccounts(env.DB, userId),
+    q.listByDate(env.DB, userId, todayJakarta()),
   ]);
 
-  const sum = (type: "in" | "out") =>
-    today.filter((t) => t.type === type).reduce((s, t) => s + t.amount, 0);
+  const liquid = accounts
+    .filter((a) => a.type !== "asset")
+    .reduce((s, a) => s + a.balance, 0);
+  const sum = (type: q.TxType) =>
+    todayTx.filter((t) => t.type === type).reduce((s, t) => s + t.amount, 0);
 
   return [
-    `💰 Saldo: ${rupiah(balance.totalIn - balance.totalOut)}`,
+    `💰 Saldo: ${rupiah(liquid)}`,
     `Hari ini: masuk ${rupiah(sum("in"))}, keluar ${rupiah(sum("out"))}`,
   ].join("\n");
 }
 
 // Placeholder: diganti dengan data asli di phase berikutnya
 async function newsSection(): Promise<string> {
-  return "📰 Berita penting\nBelum diaktifkan (Phase 5).";
+  return "📰 Berita penting\nBelum diaktifkan.";
 }
 
 async function emailSection(): Promise<string> {
-  return "📧 Email penting\nBelum diaktifkan (Phase 6).";
+  return "📧 Email penting\nBelum diaktifkan.";
 }
 
 async function tasksSection(): Promise<string> {
-  return "✅ Tugas yang belum selesai\nBelum diaktifkan (Phase 2).";
+  return "✅ Tugas yang belum selesai\nBelum diaktifkan.";
 }
 
 // Satu bagian gagal tidak boleh merusak seluruh dashboard
@@ -74,10 +62,12 @@ async function safe(
 
 export function registerStart(bot: Bot, env: Env): void {
   bot.command("start", async (ctx) => {
+    const userId = ctx.from?.id;
+    if (userId === undefined) return;
     const name = ctx.from?.first_name ?? "kamu";
 
     const sections = await Promise.all([
-      safe("balance", () => balanceSection(env), "💰 Saldo"),
+      safe("balance", () => balanceSection(env, userId), "💰 Saldo"),
       safe("news", newsSection, "📰 Berita penting"),
       safe("email", emailSection, "📧 Email penting"),
       safe("tasks", tasksSection, "✅ Tugas yang belum selesai"),
@@ -94,6 +84,4 @@ export function registerStart(bot: Bot, env: Env): void {
 
     return ctx.reply(text);
   });
-
-  bot.command("help", (ctx) => ctx.reply(HELP_TEXT));
 }
