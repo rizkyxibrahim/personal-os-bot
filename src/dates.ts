@@ -101,3 +101,17 @@ export function parseMonthArg(arg: string, today: string): string | null {
   const mm = Number(month);
   return mm >= 1 && mm <= 12 ? `${year}-${month}` : null;
 }
+
+// Tanggal jatuh tempo di bulan tertentu; tanggal 31 di bulan 30 hari jadi tanggal 30
+export function dueDate(month: string, billDay: number): string {
+  const day = Math.min(billDay, daysInMonth(month));
+  return `${month}-${String(day).padStart(2, "0")}`;
+}
+
+// Selisih hari (to - from), keduanya "YYYY-MM-DD"
+export function daysBetween(from: string, to: string): number {
+  return Math.round(
+    (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) /
+      86_400_000,
+  );
+}

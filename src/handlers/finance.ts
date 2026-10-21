@@ -4,7 +4,7 @@ import { formatDate, formatDayLong, todayJakarta } from "../dates";
 import { rupiah } from "../format";
 import { parseAmount } from "../parse";
 import { resolveCategory } from "../finance/categorize";
-import { parseEntry, parseEntryDate } from "../finance/entry";
+import { parseEntry, parseEntryDate, type Entry } from "../finance/entry";
 import * as q from "../finance/queries";
 import { budgetAlert } from "../finance/budget";
 
@@ -56,8 +56,108 @@ export function txLine(r: q.TxRow): string {
   parts.push(account);
   return parts.join(" · ");
 }
+export type Resolution =
+  | { ok: true; account: q.Account; category: q.Category | null; auto: boolean }
+  | { ok: false; error: string };
 
-// Dipanggil dari perintah (/out ...) maupun dari pesan biasa (out 25k ...)
+// Cari akun dan kategori untuk sebuah entri
+export async function resolveEntry(
+  db: D1Database,
+  userId: number,
+  entry: Entry,
+): Promise<Resolution> {
+  const account = entry.account
+    ? await q.findAccount(db, userId, entry.account)
+    : await q.getDefaultAccount(db, userId);
+  if (!account) {
+    return {
+      ok: false,
+      error: `⚠️ Akun "${entry.account}" tidak ditemukan.\nLihat /saldo atau tambah: /addaccount ${entry.account} bank`,
+    };
+  }
+
+  const catType: q.CategoryType = entry.type === "in" ? "income" : "expense";
+  const categories = (await q.listCategories(db, userId)).filter(
+    (c) => c.type === catType,
+  );
+  const resolved = resolveCategory({
+    words: entry.words,
+    hashCategory: entry.hashCategory,
+    categories,
+    type: catType,
+  });
+  if (!resolved.ok) {
+    return {
+      ok: false,
+      error: `⚠️ Kategori "${resolved.unknown}" belum ada.\nTambah dulu: /addcategory ${resolved.unknown} ${catType}\nAtau lihat daftar: /kategori`,
+    };
+  }
+
+  return {
+    ok: true,
+    account,
+    category: resolved.category,
+    auto: resolved.auto,
+  };
+}
+
+export interface SaveParams {
+  userId: number;
+  type: "in" | "out";
+  amount: number;
+  date: string;
+  account: { id: number; name: string };
+  category: { id: number; name: string } | null;
+  note: string | null;
+  autoCategory: boolean;
+  subscriptionId?: number | null;
+}
+
+// Simpan transaksi dan kembalikan teks konfirmasi (dipakai entri cepat, /qr, dan /bayarsub)
+export async function saveEntry(
+  db: D1Database,
+  p: SaveParams,
+): Promise<string> {
+  const id = await q.addTransaction(db, {
+    userId: p.userId,
+    type: p.type,
+    amount: p.amount,
+    accountId: p.account.id,
+    toAccountId: null,
+    categoryId: p.category?.id ?? null,
+    note: p.note,
+    txDate: p.date,
+    subscriptionId: p.subscriptionId ?? null,
+  });
+
+  const balance =
+    (await q.listAccounts(db, p.userId)).find((a) => a.id === p.account.id)
+      ?.balance ?? 0;
+
+  const lines = [
+    `✅ ${p.type === "in" ? "Pemasukan" : "Pengeluaran"} tersimpan (#${id})`,
+    `📅 ${formatDate(p.date)}`,
+    `${p.type === "in" ? "📈" : "📉"} ${rupiah(p.amount)}`,
+    `📂 ${p.category?.name ?? "-"}`,
+  ];
+  if (p.note) lines.push(`📝 ${p.note}`);
+  lines.push(`🏦 ${p.account.name} → saldo ${rupiah(balance)}`);
+  if (p.autoCategory && p.note)
+    lines.push(
+      "",
+      `💡 Kategori dipilih otomatis. Ubah: /edit ${id} category NamaKategori`,
+    );
+
+  const alert =
+    p.type === "out"
+      ? await budgetAlert(db, p.userId, p.category?.id ?? null, p.date)
+      : null;
+  if (alert) lines.push("", alert);
+
+  return lines.join("\n");
+}
+
+// Dipanggil dari perintah (/out ...) maupun pesan biasa (out 25k ...)
 // Mengembalikan true kalau pesan dikenali sebagai transaksi
 export async function handleQuickEntry(
   ctx: Context,
@@ -76,33 +176,11 @@ export async function handleQuickEntry(
   }
 
   const { entry } = parsed;
-  const db = env.DB;
-  await q.ensureDefaults(db, userId);
+  await q.ensureDefaults(env.DB, userId);
 
-  const account = entry.account
-    ? await q.findAccount(db, userId, entry.account)
-    : await q.getDefaultAccount(db, userId);
-  if (!account) {
-    await ctx.reply(
-      `⚠️ Akun "${entry.account}" tidak ditemukan.\nLihat /saldo atau tambah: /addaccount ${entry.account} bank`,
-    );
-    return true;
-  }
-
-  const catType: q.CategoryType = entry.type === "in" ? "income" : "expense";
-  const categories = (await q.listCategories(db, userId)).filter(
-    (c) => c.type === catType,
-  );
-  const resolved = resolveCategory({
-    words: entry.words,
-    hashCategory: entry.hashCategory,
-    categories,
-    type: catType,
-  });
-  if (!resolved.ok) {
-    await ctx.reply(
-      `⚠️ Kategori "${resolved.unknown}" belum ada.\nTambah dulu: /addcategory ${resolved.unknown} ${catType}\nAtau lihat daftar: /kategori`,
-    );
+  const target = await resolveEntry(env.DB, userId, entry);
+  if (!target.ok) {
+    await ctx.reply(target.error);
     return true;
   }
 
@@ -112,42 +190,18 @@ export async function handleQuickEntry(
     return true;
   }
 
-  const id = await q.addTransaction(db, {
-    userId,
-    type: entry.type,
-    amount: entry.amount,
-    accountId: account.id,
-    toAccountId: null,
-    categoryId: resolved.category?.id ?? null,
-    note,
-    txDate: entry.date,
-  });
-
-  const balance =
-    (await q.listAccounts(db, userId)).find((a) => a.id === account.id)
-      ?.balance ?? 0;
-
-  const lines = [
-    `✅ ${entry.type === "in" ? "Pemasukan" : "Pengeluaran"} tersimpan (#${id})`,
-    `📅 ${formatDate(entry.date)}`,
-    `${entry.type === "in" ? "📈" : "📉"} ${rupiah(entry.amount)}`,
-    `📂 ${resolved.category?.name ?? "-"}`,
-  ];
-  if (note) lines.push(`📝 ${note}`);
-  lines.push(`🏦 ${account.name} → saldo ${rupiah(balance)}`);
-  if (resolved.auto && note)
-    lines.push(
-      "",
-      `💡 Kategori dipilih otomatis. Ubah: /edit ${id} category NamaKategori`,
-    );
-
-  const alert =
-    entry.type === "out"
-      ? await budgetAlert(db, userId, resolved.category?.id ?? null, entry.date)
-      : null;
-  if (alert) lines.push("", alert);
-
-  await ctx.reply(lines.join("\n"));
+  await ctx.reply(
+    await saveEntry(env.DB, {
+      userId,
+      type: entry.type,
+      amount: entry.amount,
+      date: entry.date,
+      account: target.account,
+      category: target.category,
+      note,
+      autoCategory: target.auto,
+    }),
+  );
   return true;
 }
 

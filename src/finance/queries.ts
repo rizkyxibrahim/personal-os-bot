@@ -44,6 +44,7 @@ export interface NewTx {
   categoryId: number | null;
   note: string | null;
   txDate: string;
+  subscriptionId?: number | null;
 }
 export interface TxPatch {
   amount?: number;
@@ -241,8 +242,8 @@ export async function addTransaction(
 ): Promise<number> {
   const row = await db
     .prepare(
-      `INSERT INTO transactions (user_id, type, amount, account_id, to_account_id, category_id, note, tx_date)
-       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) RETURNING id`,
+      `INSERT INTO transactions (user_id, type, amount, account_id, to_account_id, category_id, note, tx_date, subscription_id)
+          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) RETURNING id`,
     )
     .bind(
       t.userId,
@@ -253,6 +254,7 @@ export async function addTransaction(
       t.categoryId,
       t.note,
       t.txDate,
+      t.subscriptionId ?? null,
     )
     .first<{ id: number }>();
   return row!.id;

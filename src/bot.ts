@@ -6,6 +6,8 @@ import { registerHelp } from "./handlers/help";
 import { registerStart } from "./handlers/start";
 import { registerBudget } from "./handlers/budget";
 import { registerReports } from "./handlers/reports";
+import { registerSubscriptions } from "./handlers/subscriptions";
+import { registerTemplates } from "./handlers/templates";
 
 export function createBot(env: Env): Bot {
   const bot = new Bot(env.BOT_TOKEN);
@@ -17,6 +19,8 @@ export function createBot(env: Env): Bot {
   registerFinance(bot, env);
   registerBudget(bot, env);
   registerReports(bot, env);
+  registerSubscriptions(bot, env);
+  registerTemplates(bot, env);
 
   // Harus paling akhir: pesan biasa seperti "out 25k makan siang"
   bot.on("message:text", async (ctx) => {
