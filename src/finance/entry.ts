@@ -78,7 +78,16 @@ export function parseEntry(text: string, today: string): EntryResult {
     j++;
   }
 
-  const amount = tokens[j] ? parseAmount(tokens[j]) : null;
+  let amountTok = tokens[j] ?? "";
+  let used = 1;
+  if (
+    /^[\d.,]+$/.test(amountTok) &&
+    /^(juta|jt|ribu|rb|k)$/i.test(tokens[j + 1] ?? "")
+  ) {
+    amountTok = `${amountTok} ${tokens[j + 1]}`;
+    used = 2;
+  }
+  const amount = amountTok ? parseAmount(amountTok) : null;
   if (amount === null) return { kind: "none" };
 
   let date = today;
@@ -91,7 +100,7 @@ export function parseEntry(text: string, today: string): EntryResult {
     date = parsed;
   }
 
-  let rest = tokens.slice(j + 1).join(" ");
+  let rest = tokens.slice(j + used).join(" ");
 
   let account: string | null = null;
   const acc = rest.match(/\[([^\]]+)\]/);

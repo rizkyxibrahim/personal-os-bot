@@ -24,12 +24,17 @@ async function balanceSection(
   const sum = (type: q.TxType) =>
     todayTx.filter((t) => t.type === type).reduce((s, t) => s + t.amount, 0);
 
-  return [
-    `💰 Saldo: ${rupiah(liquid)}`,
-    `Hari ini: masuk ${rupiah(sum("in"))}, keluar ${rupiah(sum("out"))}`,
-  ].join("\n");
+  const lines = ["💰 SALDO", rupiah(liquid)];
+  if (todayTx.length === 0) {
+    lines.push("Hari ini: belum ada transaksi");
+  } else {
+    lines.push(
+      `📈 Masuk hari ini: ${rupiah(sum("in"))}`,
+      `📉 Keluar hari ini: ${rupiah(sum("out"))}`,
+    );
+  }
+  return lines.join("\n");
 }
-
 // Langganan yang belum dibayar dan sudah masuk jendela pengingat, plus tempo hutang <= 3 hari
 async function remindersSection(
   env: Env,
@@ -78,7 +83,7 @@ async function remindersSection(
     );
   }
 
-  return lines.length > 0 ? ["⏰ Pengingat", ...lines].join("\n") : null;
+  return lines.length > 0 ? ["⏰ PENGINGAT", ...lines].join("\n") : null;
 }
 
 async function tasksSection(
@@ -86,7 +91,7 @@ async function tasksSection(
   userId: number,
   today: string,
 ): Promise<string> {
-  const title = "✅ Tugas yang belum selesai";
+  const title = "✅ TUGAS";
   const tasks = await listOpenTasks(env.DB, userId);
   if (tasks.length === 0)
     return `${title}\nBelum ada tugas. Tambah dengan /addtask.`;
@@ -137,36 +142,23 @@ export async function buildDashboard(
 
   const sections = (
     await Promise.all([
-      safe("balance", () => balanceSection(env, userId, today), "💰 Saldo"),
+      safe("balance", () => balanceSection(env, userId, today), "💰 SALDO"),
       safe(
         "reminders",
         () => remindersSection(env, userId, today),
-        "⏰ Pengingat",
+        "⏰ PENGINGAT",
       ),
-      safe(
-        "news",
-        async () => "📰 Berita penting\nBelum diaktifkan.",
-        "📰 Berita penting",
-      ),
-      safe(
-        "email",
-        async () => "📧 Email penting\nBelum diaktifkan.",
-        "📧 Email penting",
-      ),
-      safe(
-        "tasks",
-        () => tasksSection(env, userId, today),
-        "✅ Tugas yang belum selesai",
-      ),
+      safe("tasks", () => tasksSection(env, userId, today), "✅ TUGAS"),
     ])
   ).filter((s): s is string => Boolean(s));
 
   return [
     `Hi ${name}! 👋`,
-    `Sekarang hari ${formatDayLong(today)}.`,
+    formatDayLong(today),
     "",
     sections.join("\n\n"),
     "",
-    "Ketik /help untuk melihat semua perintah.",
+    "🚧 Berita dan email: segera hadir",
+    "Ketik /menu untuk tombol, atau /help untuk daftar perintah.",
   ].join("\n");
 }

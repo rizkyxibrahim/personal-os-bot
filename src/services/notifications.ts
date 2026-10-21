@@ -30,9 +30,12 @@ export async function release(
 }
 
 export async function cleanup(db: D1Database): Promise<void> {
-  await db
-    .prepare(
+  await db.batch([
+    db.prepare(
       "DELETE FROM scheduled_notifications WHERE created_at < datetime('now', '-60 days')",
-    )
-    .run();
+    ),
+    db.prepare(
+      "DELETE FROM conversation_state WHERE expires_at < datetime('now')",
+    ),
+  ]);
 }

@@ -3,6 +3,9 @@ import type { Env } from "../env";
 import { formatDue, todayJakarta } from "../dates";
 import { parseDue, parseTaskInput } from "../taskParse";
 import { formatTask, groupTasks, section } from "../services/taskView";
+import { startFlow } from "../wizard/engine";
+import { showDonePicker } from "../wizard/pickers";
+import { buildToday, buildTodo } from "../services/views";
 import {
   addTask,
   completeTask,
@@ -34,6 +37,7 @@ export function registerTasks(bot: Bot, env: Env): void {
   bot.command(["addtask", "tambah"], async (ctx) => {
     const userId = ctx.from?.id;
     if (userId === undefined) return;
+    if (!ctx.match.trim()) return startFlow(ctx, env, "task");
 
     const parsed = parseTaskInput(ctx.match);
     if (!parsed.ok) return ctx.reply(`⚠️ ${parsed.error}`);
@@ -62,48 +66,21 @@ export function registerTasks(bot: Bot, env: Env): void {
 
   bot.command(["todo", "tugas"], async (ctx) => {
     const userId = ctx.from?.id;
+
     if (userId === undefined) return;
-
-    const tasks = await listOpenTasks(db, userId);
-    if (tasks.length === 0)
-      return ctx.reply("Belum ada tugas aktif. Tambah dengan /addtask.");
-
-    const g = groupTasks(tasks, todayJakarta());
-    const lines = [
-      `📋 Tugas aktif (${tasks.length})`,
-      "",
-      ...section("⏰ Terlewat", g.overdue),
-      ...section("📅 Hari ini", g.today),
-      ...section("🗓️ Mendatang", g.upcoming),
-      ...section("📌 Tanpa tanggal", g.noDate),
-    ];
-    return ctx.reply(clip(lines.join("\n").trim()));
+    return ctx.reply(await buildTodo(db, userId));
   });
 
   bot.command("today", async (ctx) => {
     const userId = ctx.from?.id;
     if (userId === undefined) return;
-
-    const g = groupTasks(await listOpenTasks(db, userId), todayJakarta());
-    if (g.overdue.length + g.today.length === 0) {
-      return ctx.reply(
-        "Tidak ada tugas yang jatuh tempo hari ini. 🎉\nLihat semua tugas dengan /todo.",
-      );
-    }
-
-    const lines = [
-      "🗒️ Rencana hari ini",
-      "",
-      ...section("⏰ Terlewat", g.overdue),
-      ...section("📅 Hari ini", g.today),
-    ];
-    return ctx.reply(clip(lines.join("\n").trim()));
+    return ctx.reply(await buildToday(db, userId));
   });
 
   bot.command("done", async (ctx) => {
     const userId = ctx.from?.id;
     if (userId === undefined) return;
-
+    if (!ctx.match.trim()) return showDonePicker(ctx, env, userId);
     const id = parseId(ctx.match.trim());
     if (id === null) return ctx.reply("Format: /done ID\nContoh: /done 3");
 

@@ -1,23 +1,28 @@
 import type { Bot } from "grammy";
 
 const MAIN = [
-  "📖 Personal OS",
+  "📖 PERSONAL OS",
   "",
-  "💸 Catat: out 25k makan siang · in 5jt gaji [BCA]",
-  "🏦 Akun: /saldo · /addaccount · /transfer",
-  "🗂️ Kategori: /kategori · /addcategory",
-  "💰 Laporan: /budget · /cekbudget · /rekap · /overview · /cari · /export",
-  "📅 Riwayat: /details · /edit · /hapus · /recyclebin",
-  "⚡ Rutin: /qr · /template · /addsub · /ceksub · /bayarsub",
-  "⚖️ Hutang: /hutang · /piutang · /bayar · /cekhutang",
-  "🎯 Goals: /addgoal · /save · /cekgoal",
-  "✅ Tugas: /addtask · /todo · /today · /done · /tunda",
+  "🧭 /menu — pilih lewat tombol, bot bertanya satu per satu (/batal untuk berhenti)",
   "",
-  "Detail dan contoh: /help transaksi, akun, kategori, budget, laporan, template, langganan, hutang, goal, tugas, jadwal",
-  "Dashboard: /start",
-  "🚧 Segera: berita, email, struk",
+  "💸 CATAT CEPAT (tanpa /)",
+  "out 25k makan siang",
+  "in 5jt gaji [BCA]",
+  "(/out atau /in saja = bot bertanya)",
+  "",
+  "🏦 AKUN  /saldo · /addaccount · /transfer",
+  "🗂 KATEGORI  /kategori · /addcategory",
+  "💰 LAPORAN  /budget · /cekbudget · /rekap · /overview · /cari · /export",
+  "📅 RIWAYAT  /details · /edit · /hapus · /recyclebin",
+  "⚡ RUTIN  /qr · /template · /addsub · /ceksub · /bayarsub",
+  "⚖️ HUTANG  /hutang · /piutang · /bayar · /cekhutang",
+  "🎯 GOALS  /addgoal · /save · /cekgoal",
+  "✅ TUGAS  /addtask · /todo · /today · /done · /tunda",
+  "",
+  "ℹ️ Detail: /help <topik>",
+  "Topik: transaksi, akun, kategori, budget, laporan, template, langganan, hutang, goal, tugas, jadwal",
+  "🏠 Dashboard: /start",
 ].join("\n");
-
 const TOPICS: Record<string, string> = {
   transaksi: [
     "💸 Catat transaksi",

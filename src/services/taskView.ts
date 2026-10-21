@@ -1,7 +1,7 @@
 import { formatDue } from "../dates";
 import type { Task } from "../tasksDb";
 
-const PRIORITY_ICON = { high: "🔴", normal: "🟡", low: "🟢" } as const;
+export const PRIORITY_ICON = { high: "🔴", normal: "🟡", low: "🟢" } as const;
 
 export function formatTask(t: Task): string {
   const parts = [`#${t.id} ${PRIORITY_ICON[t.priority]} ${t.title}`];

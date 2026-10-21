@@ -7,6 +7,9 @@ import { resolveCategory } from "../finance/categorize";
 import { parseEntry, parseEntryDate, type Entry } from "../finance/entry";
 import * as q from "../finance/queries";
 import { budgetAlert } from "../finance/budget";
+import { startFlow } from "../wizard/engine";
+import { showDeletePicker } from "../wizard/pickers";
+import { buildSaldo } from "../services/views";
 
 const ACCOUNT_TYPES: q.AccountType[] = ["cash", "bank", "ewallet", "asset"];
 const BUDGET_TYPES: q.BudgetType[] = ["needs", "wants", "savings"];
@@ -225,6 +228,8 @@ export function registerFinance(bot: Bot, env: Env): void {
   // ---- /in dan /out (dengan awalan "/") ----
   const entryCommand = (names: string[], prefix: "in" | "out") =>
     bot.command(names, async (ctx) => {
+      if (!ctx.match.trim()) return startFlow(ctx, env, prefix);
+
       const handled = await handleQuickEntry(
         ctx,
         env,
@@ -237,23 +242,7 @@ export function registerFinance(bot: Bot, env: Env): void {
 
   // ---- Saldo & akun ----
   on(["saldo", "balance", "accounts", "akun"], async (ctx, userId) => {
-    const accounts = await q.listAccounts(db, userId);
-    const sum = (list: q.AccountBalance[]) =>
-      list.reduce((s, a) => s + a.balance, 0);
-    const liquid = accounts.filter((a) => a.type !== "asset");
-    const assets = accounts.filter((a) => a.type === "asset");
-
-    const lines = [
-      "💰 Saldo akun",
-      "",
-      ...accounts.map(
-        (a) => `${ICON_ACCOUNT[a.type]} ${a.name}: ${rupiah(a.balance)}`,
-      ),
-      "",
-      `Total kas & bank: ${rupiah(sum(liquid))}`,
-    ];
-    if (assets.length > 0) lines.push(`Total aset: ${rupiah(sum(assets))}`);
-    return ctx.reply(lines.join("\n"));
+    return ctx.reply(await buildSaldo(db, userId));
   });
 
   on("addaccount", async (ctx, userId) => {
@@ -504,6 +493,7 @@ export function registerFinance(bot: Bot, env: Env): void {
   });
 
   on(["hapus", "del"], async (ctx, userId) => {
+    if (!ctx.match.trim()) return showDeletePicker(ctx, env, userId);
     const id = parseId(ctx.match.trim());
     if (id === null) return ctx.reply("Format: /hapus ID\nContoh: /hapus 12");
 

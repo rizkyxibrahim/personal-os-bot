@@ -13,7 +13,7 @@ export type ParseResult =
   | { ok: true; value: TaskInput }
   | { ok: false; error: string };
 
-const PRIORITIES: Record<string, Priority> = {
+export const PRIORITIES: Record<string, Priority> = {
   tinggi: "high",
   high: "high",
   sedang: "normal",
@@ -33,7 +33,7 @@ export function parseDue(raw: string): string | null {
 
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return isValidDate(s) ? s : null;
 
-  const m = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);
+  const m = s.match(/^(\d{1,2})[/-](\d{1,2})(?:[/-](\d{4}))?$/);
   if (m) {
     const year = m[3] ?? today.slice(0, 4);
     const date = `${year}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;

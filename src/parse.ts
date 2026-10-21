@@ -1,17 +1,17 @@
-// "25000", "25.000", "25k", "25rb", "1,5jt" -> angka rupiah
+// "25000", "25.000", "25k", "25rb", "1,5jt", "30 juta", "500 ribu" -> angka rupiah
 export function parseAmount(raw: string): number | null {
   const s = raw
     .toLowerCase()
-    .replace(/^rp\.?/, "")
+    .replace(/^rp\.?\s*/, "")
     .trim();
-  const m = s.match(/^([\d.,]+)(k|rb|jt)?$/);
+  const m = s.match(/^([\d.,]+)\s*(k|rb|ribu|jt|juta)?$/);
   if (!m) return null;
 
   const [, num, suffix] = m;
   let value: number;
 
   if (suffix) {
-    const multiplier = suffix === "jt" ? 1_000_000 : 1_000;
+    const multiplier = suffix === "jt" || suffix === "juta" ? 1_000_000 : 1_000;
     value = Math.round(parseFloat(num.replace(",", ".")) * multiplier);
   } else {
     value = parseInt(num.replace(/[.,]/g, ""), 10);
@@ -19,7 +19,6 @@ export function parseAmount(raw: string): number | null {
 
   return Number.isFinite(value) && value > 0 ? value : null;
 }
-
 // "makan siang #makan" -> { note: "makan siang", category: "makan" }
 export function splitNote(text: string): {
   note: string | null;

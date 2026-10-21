@@ -291,6 +291,20 @@ export async function listDeleted(
   return results;
 }
 
+export async function listRecent(
+  db: D1Database,
+  userId: number,
+  limit: number,
+): Promise<TxRow[]> {
+  const { results } = await db
+    .prepare(
+      `${TX_SELECT} WHERE t.user_id = ?1 AND t.deleted_at IS NULL ORDER BY t.tx_date DESC, t.id DESC LIMIT ?2`,
+    )
+    .bind(userId, limit)
+    .all<TxRow>();
+  return results;
+}
+
 export async function getTransaction(
   db: D1Database,
   userId: number,
