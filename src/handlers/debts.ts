@@ -6,6 +6,9 @@ import { parseAmount } from "../parse";
 import { parseFutureDate } from "../finance/entry";
 import * as debts from "../finance/debts";
 import * as q from "../finance/queries";
+import { startFlow } from "../wizard/engine";
+import { showDebtPicker } from "../wizard/pickers";
+import { payDebt, saveDebt } from "../services/debtOps";
 
 const NAME_RE = /^[\p{L}\p{N}_-]{1,30}$/u;
 
@@ -113,48 +116,61 @@ async function createDebt(
   if (cashflow && !account)
     return ctx.reply(`⚠️ Akun "${accountName}" tidak ditemukan. Lihat /saldo`);
 
-  const id = await debts.addDebt(db, userId, {
-    direction,
-    counterparty: name,
-    principal,
-    note,
-    dueDate,
-  });
-  const payable = direction === "payable";
+  return ctx.reply(
+    await saveDebt(db, userId, {
+      direction,
+      counterparty: name,
+      principal,
+      note,
+      dueDate,
+      account,
+    }),
+  );
+}
 
-  const lines = [
-    `${payable ? "🔻 Hutang" : "🔺 Piutang"} tercatat (D${id})`,
-    `👤 ${name} · ${rupiah(principal)}`,
-  ];
-  if (dueDate) lines.push(`📅 tempo ${formatDate(dueDate)}`);
-  if (note) lines.push(`📝 ${note}`);
+export async function buildDebtList(
+  db: D1Database,
+  userId: number,
+  showAll: boolean,
+): Promise<string> {
+  const today = todayJakarta();
+  const all = await debts.listDebts(db, userId);
+  const list = all.filter((d) => showAll || d.principal - d.paid > 0);
 
-  if (account) {
-    await q.addTransaction(db, {
-      userId,
-      type: payable ? "in" : "out",
-      amount: principal,
-      accountId: account.id,
-      toAccountId: null,
-      categoryId: null,
-      note: payable ? `Hutang dari ${name}` : `Piutang ke ${name}`,
-      txDate: today,
-      debtId: id,
-    });
-    const balance =
-      (await q.listAccounts(db, userId)).find((a) => a.id === account.id)
-        ?.balance ?? 0;
-    lines.push(`🏦 ${account.name} → saldo ${rupiah(balance)}`);
-  } else {
-    lines.push("ℹ️ Catatan awal: tidak ada pergerakan kas.");
+  if (list.length === 0) {
+    return "Belum ada hutang atau piutang aktif.\nCatat dengan /hutang atau /piutang (tanpa isi, bot akan bertanya).";
   }
 
+  const remainingSum = (items: debts.Debt[]) =>
+    items.reduce((s, d) => s + Math.max(0, d.principal - d.paid), 0);
+  const payable = list.filter((d) => d.direction === "payable");
+  const receivable = list.filter((d) => d.direction === "receivable");
+
+  const lines = ["⚖️ Hutang & piutang"];
+  if (payable.length > 0) {
+    lines.push(
+      "",
+      "🔻 Hutang (kamu berutang)",
+      ...payable.map((d) => debtLine(d, today)),
+      `Total sisa hutang: ${rupiah(remainingSum(payable))}`,
+    );
+  }
+  if (receivable.length > 0) {
+    lines.push(
+      "",
+      "🔺 Piutang (orang berutang padamu)",
+      ...receivable.map((d) => debtLine(d, today)),
+      `Total sisa piutang: ${rupiah(remainingSum(receivable))}`,
+    );
+  }
   lines.push(
-    payable
-      ? `Bayar dengan /bayar D${id} jumlah`
-      : `Terima dengan /terima D${id} jumlah`,
+    "",
+    `Posisi bersih (piutang − hutang): ${rupiah(remainingSum(receivable) - remainingSum(payable))}`,
   );
-  return ctx.reply(lines.join("\n"));
+  if (!showAll)
+    lines.push("Yang sudah lunas disembunyikan. Lihat semua: /cekhutang semua");
+
+  return lines.join("\n");
 }
 
 export function registerDebts(bot: Bot, env: Env): void {
@@ -165,6 +181,9 @@ export function registerDebts(bot: Bot, env: Env): void {
       const userId = ctx.from?.id;
       if (userId === undefined) return;
       await q.ensureDefaults(db, userId);
+
+      if (c.cashflow && !ctx.match.trim())
+        return startFlow(ctx, env, c.direction === "payable" ? "debt" : "recv");
       return createDebt(ctx, db, userId, c.direction, c.cashflow);
     });
   }
@@ -172,50 +191,13 @@ export function registerDebts(bot: Bot, env: Env): void {
   bot.command("cekhutang", async (ctx) => {
     const userId = ctx.from?.id;
     if (userId === undefined) return;
-
-    const showAll = ctx.match.trim().toLowerCase() === "semua";
-    const today = todayJakarta();
-    const all = await debts.listDebts(db, userId);
-    const list = all.filter((d) => showAll || d.principal - d.paid > 0);
-
-    if (list.length === 0) {
-      return ctx.reply(
-        "Belum ada hutang atau piutang aktif.\nCatat: /hutang Nama 5jt ... atau /piutang Nama 1jt ...",
-      );
-    }
-
-    const remainingSum = (items: debts.Debt[]) =>
-      items.reduce((s, d) => s + Math.max(0, d.principal - d.paid), 0);
-    const payable = list.filter((d) => d.direction === "payable");
-    const receivable = list.filter((d) => d.direction === "receivable");
-
-    const lines = ["⚖️ Hutang & piutang"];
-    if (payable.length > 0) {
-      lines.push(
-        "",
-        "🔻 Hutang (kamu berutang)",
-        ...payable.map((d) => debtLine(d, today)),
-        `Total sisa hutang: ${rupiah(remainingSum(payable))}`,
-      );
-    }
-    if (receivable.length > 0) {
-      lines.push(
-        "",
-        "🔺 Piutang (orang berutang padamu)",
-        ...receivable.map((d) => debtLine(d, today)),
-        `Total sisa piutang: ${rupiah(remainingSum(receivable))}`,
-      );
-    }
-    lines.push(
-      "",
-      `Posisi bersih (piutang − hutang): ${rupiah(remainingSum(receivable) - remainingSum(payable))}`,
+    return ctx.reply(
+      await buildDebtList(
+        db,
+        userId,
+        ctx.match.trim().toLowerCase() === "semua",
+      ),
     );
-    if (!showAll)
-      lines.push(
-        "Yang sudah lunas disembunyikan. Lihat semua: /cekhutang semua",
-      );
-
-    return ctx.reply(lines.join("\n"));
   });
 
   // /bayar untuk hutang, /terima untuk piutang (arah ditentukan oleh jenis catatannya)
@@ -224,11 +206,13 @@ export function registerDebts(bot: Bot, env: Env): void {
     if (userId === undefined) return;
     await q.ensureDefaults(db, userId);
 
+    if (!ctx.match.trim()) return showDebtPicker(ctx, env, userId);
+
     const [idRaw = "", amountRaw = "", ...rest] = ctx.match.trim().split(/\s+/);
     const id = parseDebtId(idRaw);
     if (id === null || !amountRaw) {
       return ctx.reply(
-        "Format: /bayar ID Nominal [Akun]\nContoh: /bayar D1 2jt [BCA]\nMelunasi sisa: /bayar D1 lunas\nLihat ID: /cekhutang",
+        "Format: /bayar ID Nominal [Akun]\nContoh: /bayar D1 2jt [BCA]\nMelunasi sisa: /bayar D1 lunas\nTanpa isi: pilih dari daftar tombol.",
       );
     }
 
@@ -267,36 +251,8 @@ export function registerDebts(bot: Bot, env: Env): void {
         `⚠️ Akun "${accountName}" tidak ditemukan. Lihat /saldo`,
       );
 
-    const payable = debt.direction === "payable";
-    const today = todayJakarta();
-    const txId = await q.addTransaction(db, {
-      userId,
-      type: payable ? "out" : "in",
-      amount,
-      accountId: account.id,
-      toAccountId: null,
-      categoryId: null,
-      note: payable
-        ? `Bayar hutang ke ${debt.counterparty}`
-        : `Terima piutang dari ${debt.counterparty}`,
-      txDate: today,
-      debtId: debt.id,
-    });
-
-    const balance =
-      (await q.listAccounts(db, userId)).find((a) => a.id === account.id)
-        ?.balance ?? 0;
-    const left = remaining - amount;
-
-    const lines = [
-      `✅ ${payable ? "Pembayaran hutang" : "Penerimaan piutang"} ${debt.counterparty}: ${rupiah(amount)} (#${txId})`,
-      `📅 ${formatDate(today)}`,
-      `🏦 ${account.name} → saldo ${rupiah(balance)}`,
-      left > 0 ? `Sisa: ${rupiah(left)}` : "🎉 Lunas!",
-    ];
-    return ctx.reply(lines.join("\n"));
+    return ctx.reply(await payDebt(db, userId, debt, amount, account));
   });
-
   bot.command(["deldebt", "hapushutang"], async (ctx) => {
     const userId = ctx.from?.id;
     if (userId === undefined) return;

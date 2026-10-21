@@ -7,6 +7,8 @@ import { parseFutureDate } from "../finance/entry";
 import * as goals from "../finance/goals";
 import * as q from "../finance/queries";
 import { saveEntry } from "./finance";
+import { startFlow } from "../wizard/engine";
+import { showGoalPicker } from "../wizard/pickers";
 
 const NAME_RE = /^[\p{L}\p{N}_-]{1,30}$/u;
 const PRIORITY_ICON = { high: "🔴", med: "🟡", low: "🟢" } as const;
@@ -32,7 +34,7 @@ function parseGoalId(raw: string): number | null {
   return m && Number(m[1]) > 0 ? Number(m[1]) : null;
 }
 
-function goalBlock(g: goals.Goal, today: string): string[] {
+export function goalBlock(g: goals.Goal, today: string): string[] {
   const pct = Math.round((g.saved * 100) / g.target);
   const remaining = Math.max(0, g.target - g.saved);
 
@@ -56,6 +58,46 @@ function goalBlock(g: goals.Goal, today: string): string[] {
   return lines;
 }
 
+export async function depositToGoal(
+  db: D1Database,
+  userId: number,
+  goal: goals.Goal,
+  amount: number,
+  account: { id: number; name: string },
+): Promise<string> {
+  const category = await q.findCategory(db, userId, "Tabungan", "expense");
+  const today = todayJakarta();
+
+  const text = await saveEntry(db, {
+    userId,
+    type: "out",
+    amount,
+    date: today,
+    account,
+    category: category ? { id: category.id, name: category.name } : null,
+    note: `Tabungan ${goal.name}`,
+    autoCategory: false,
+    goalId: goal.id,
+  });
+
+  const after = await goals.getGoal(db, userId, goal.id);
+  return [text, "", ...(after ? goalBlock(after, today) : [])].join("\n");
+}
+
+export async function buildGoalList(
+  db: D1Database,
+  userId: number,
+): Promise<string> {
+  const list = await goals.listGoals(db, userId);
+  if (list.length === 0)
+    return "Belum ada goal.\nBuat dengan /addgoal (tanpa isi, bot akan bertanya).";
+
+  const today = todayJakarta();
+  const lines = ["🎯 Goals", ""];
+  for (const g of list) lines.push(...goalBlock(g, today), "");
+  return lines.join("\n").trim();
+}
+
 export function registerGoals(bot: Bot, env: Env): void {
   const db = env.DB;
 
@@ -63,7 +105,7 @@ export function registerGoals(bot: Bot, env: Env): void {
     const userId = ctx.from?.id;
     if (userId === undefined) return;
     await q.ensureDefaults(db, userId);
-
+    if (!ctx.match.trim()) return startFlow(ctx, env, "goal");
     const today = todayJakarta();
     const [name, targetRaw, ...rest] = ctx.match
       .trim()
@@ -129,12 +171,14 @@ export function registerGoals(bot: Bot, env: Env): void {
     if (userId === undefined) return;
     await q.ensureDefaults(db, userId);
 
+    if (!ctx.match.trim()) return showGoalPicker(ctx, env, userId);
+
     const [idRaw = "", amountRaw = "", ...rest] = ctx.match.trim().split(/\s+/);
     const id = parseGoalId(idRaw);
     const amount = amountRaw ? parseAmount(amountRaw) : null;
     if (id === null || amount === null) {
       return ctx.reply(
-        "Format: /save ID Nominal [Akun]\nContoh: /save G1 500k [BCA]\nLihat ID: /cekgoal",
+        "Format: /save ID Nominal [Akun]\nContoh: /save G1 500k [BCA]\nTanpa isi: pilih dari daftar tombol.",
       );
     }
 
@@ -155,39 +199,13 @@ export function registerGoals(bot: Bot, env: Env): void {
         `⚠️ Akun "${accountName}" tidak ditemukan. Lihat /saldo`,
       );
 
-    const category = await q.findCategory(db, userId, "Tabungan", "expense");
-    const today = todayJakarta();
-
-    const text = await saveEntry(db, {
-      userId,
-      type: "out",
-      amount,
-      date: today,
-      account: { id: account.id, name: account.name },
-      category: category ? { id: category.id, name: category.name } : null,
-      note: `Tabungan ${goal.name}`,
-      autoCategory: false,
-      goalId: goal.id,
-    });
-
-    const after = await goals.getGoal(db, userId, id);
-    return ctx.reply(
-      [text, "", ...(after ? goalBlock(after, today) : [])].join("\n"),
-    );
+    return ctx.reply(await depositToGoal(db, userId, goal, amount, account));
   });
 
   bot.command("cekgoal", async (ctx) => {
     const userId = ctx.from?.id;
     if (userId === undefined) return;
-
-    const list = await goals.listGoals(db, userId);
-    if (list.length === 0)
-      return ctx.reply("Belum ada goal.\n\n" + USAGE_ADDGOAL);
-
-    const today = todayJakarta();
-    const lines = ["🎯 Goals", ""];
-    for (const g of list) lines.push(...goalBlock(g, today), "");
-    return ctx.reply(lines.join("\n").trim());
+    return ctx.reply(await buildGoalList(db, userId));
   });
 
   bot.command("detailgoal", async (ctx) => {

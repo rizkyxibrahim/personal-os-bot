@@ -20,12 +20,26 @@ import { registerFlow } from "./wizard/registry";
 import { clearState, getState } from "./wizard/state";
 import { taskFlow } from "./wizard/taskFlow";
 
+import { debtFlow } from "./wizard/debtFlow";
+import { debtPayFlow } from "./wizard/debtPayFlow";
+import { goalFlow } from "./wizard/goalFlow";
+import { goalSaveFlow } from "./wizard/goalSaveFlow";
+import { subFlow } from "./wizard/subFlow";
+import { subPayFlow } from "./wizard/subPayFlow";
+
 export function createBot(env: Env): Bot {
   const bot = new Bot(env.BOT_TOKEN);
 
   registerFlow(entryFlow("out"));
   registerFlow(entryFlow("in"));
   registerFlow(taskFlow());
+  registerFlow(goalFlow());
+  registerFlow(debtFlow("payable"));
+  registerFlow(debtFlow("receivable"));
+  registerFlow(debtPayFlow());
+  registerFlow(goalSaveFlow());
+  registerFlow(subFlow());
+  registerFlow(subPayFlow());
 
   // Error apa pun jangan sampai membuat Telegram mengirim ulang pesan yang sama berulang-ulang
   bot.catch(async (err) => {

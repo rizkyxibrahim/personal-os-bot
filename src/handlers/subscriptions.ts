@@ -7,6 +7,8 @@ import { resolveCategory } from "../finance/categorize";
 import * as q from "../finance/queries";
 import * as subs from "../finance/subscriptions";
 import { saveEntry } from "./finance";
+import { startFlow } from "../wizard/engine";
+import { showSubPicker } from "../wizard/pickers";
 
 const NAME_RE = /^[\p{L}\p{N}_-]{1,30}$/u;
 
@@ -31,6 +33,55 @@ function statusText(
   return `⏳ jatuh tempo ${formatDue(due)} (${diff} hari lagi)`;
 }
 
+export async function paySubscription(
+  db: D1Database,
+  userId: number,
+  sub: subs.Subscription,
+): Promise<string> {
+  const text = await saveEntry(db, {
+    userId,
+    type: "out",
+    amount: sub.amount,
+    date: todayJakarta(),
+    account: { id: sub.account_id, name: sub.account_name },
+    category:
+      sub.category_id === null
+        ? null
+        : { id: sub.category_id, name: sub.category_name ?? "-" },
+    note: `Langganan ${sub.name}`,
+    autoCategory: false,
+    subscriptionId: sub.id,
+  });
+  return `📺 ${sub.name} dibayar.\n${text}`;
+}
+
+export async function buildSubList(
+  db: D1Database,
+  userId: number,
+): Promise<string> {
+  const today = todayJakarta();
+  const month = today.slice(0, 7);
+  const list = await subs.listSubscriptions(db, userId, month);
+  if (list.length === 0)
+    return "Belum ada langganan.\nTambah dengan /addsub (tanpa isi, bot akan bertanya).";
+
+  const total = list.reduce((s, x) => s + x.amount, 0);
+  const paid = list.filter((x) => x.paid).reduce((s, x) => s + x.amount, 0);
+
+  return [
+    "📺 Langganan bulan ini",
+    "",
+    ...list.map(
+      (s) =>
+        `#${s.id} ${s.name} — ${rupiah(s.amount)} (tgl ${s.bill_day})\n   ${statusText(s, month, today)}`,
+    ),
+    "",
+    `Total bulanan: ${rupiah(total)}`,
+    `Sudah dibayar: ${rupiah(paid)}`,
+    `Belum dibayar: ${rupiah(total - paid)}`,
+  ].join("\n");
+}
+
 export function registerSubscriptions(bot: Bot, env: Env): void {
   const db = env.DB;
 
@@ -38,7 +89,7 @@ export function registerSubscriptions(bot: Bot, env: Env): void {
     const userId = ctx.from?.id;
     if (userId === undefined) return;
     await q.ensureDefaults(db, userId);
-
+    if (!ctx.match.trim()) return startFlow(ctx, env, "sub");
     const tokens = ctx.match.trim().split(/\s+/).filter(Boolean);
     const [name, amountRaw, dayRaw] = tokens;
     const amount = amountRaw ? parseAmount(amountRaw) : null;
@@ -120,30 +171,7 @@ export function registerSubscriptions(bot: Bot, env: Env): void {
   bot.command("ceksub", async (ctx) => {
     const userId = ctx.from?.id;
     if (userId === undefined) return;
-    await q.ensureDefaults(db, userId);
-
-    const today = todayJakarta();
-    const month = today.slice(0, 7);
-    const list = await subs.listSubscriptions(db, userId, month);
-    if (list.length === 0)
-      return ctx.reply("Belum ada langganan.\n\n" + USAGE_ADDSUB);
-
-    const total = list.reduce((s, x) => s + x.amount, 0);
-    const paid = list.filter((x) => x.paid).reduce((s, x) => s + x.amount, 0);
-
-    const lines = [
-      "📺 Langganan bulan ini",
-      "",
-      ...list.map(
-        (s) =>
-          `#${s.id} ${s.name} — ${rupiah(s.amount)} (tgl ${s.bill_day})\n   ${statusText(s, month, today)}`,
-      ),
-      "",
-      `Total bulanan: ${rupiah(total)}`,
-      `Sudah dibayar: ${rupiah(paid)}`,
-      `Belum dibayar: ${rupiah(total - paid)}`,
-    ];
-    return ctx.reply(lines.join("\n"));
+    return ctx.reply(await buildSubList(db, userId));
   });
 
   bot.command("bayarsub", async (ctx) => {
@@ -151,9 +179,14 @@ export function registerSubscriptions(bot: Bot, env: Env): void {
     if (userId === undefined) return;
     await q.ensureDefaults(db, userId);
 
+    if (!ctx.match.trim()) return showSubPicker(ctx, env, userId);
+
     const id = parseInt(ctx.match.trim().replace(/^#/, ""), 10);
-    if (!Number.isInteger(id) || id <= 0)
-      return ctx.reply("Format: /bayarsub ID\nLihat ID: /ceksub");
+    if (!Number.isInteger(id) || id <= 0) {
+      return ctx.reply(
+        "Format: /bayarsub ID\nLihat ID: /ceksub\nTanpa isi: pilih dari daftar tombol.",
+      );
+    }
 
     const today = todayJakarta();
     const sub = await subs.getSubscription(db, userId, id, today.slice(0, 7));
@@ -162,24 +195,8 @@ export function registerSubscriptions(bot: Bot, env: Env): void {
     if (sub.paid)
       return ctx.reply(`Langganan ${sub.name} sudah dibayar bulan ini.`);
 
-    const text = await saveEntry(db, {
-      userId,
-      type: "out",
-      amount: sub.amount,
-      date: today,
-      account: { id: sub.account_id, name: sub.account_name },
-      category:
-        sub.category_id === null
-          ? null
-          : { id: sub.category_id, name: sub.category_name ?? "-" },
-      note: `Langganan ${sub.name}`,
-      autoCategory: false,
-      subscriptionId: sub.id,
-    });
-
-    return ctx.reply(`📺 ${sub.name} dibayar.\n${text}`);
+    return ctx.reply(await paySubscription(db, userId, sub));
   });
-
   bot.command("delsub", async (ctx) => {
     const userId = ctx.from?.id;
     if (userId === undefined) return;

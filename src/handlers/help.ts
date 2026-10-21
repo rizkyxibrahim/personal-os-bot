@@ -8,7 +8,8 @@ const MAIN = [
   "💸 CATAT CEPAT (tanpa /)",
   "out 25k makan siang",
   "in 5jt gaji [BCA]",
-  "(/out atau /in saja = bot bertanya)",
+  "Tanpa isi, bot bertanya satu per satu: /out /in /addtask /addgoal /hutang /piutang /addsub",
+  "Tanpa isi, bot menampilkan pilihan: /done /hapus /bayar /save /bayarsub",
   "",
   "🏦 AKUN  /saldo · /addaccount · /transfer",
   "🗂 KATEGORI  /kategori · /addcategory",
@@ -23,6 +24,7 @@ const MAIN = [
   "Topik: transaksi, akun, kategori, budget, laporan, template, langganan, hutang, goal, tugas, jadwal",
   "🏠 Dashboard: /start",
 ].join("\n");
+
 const TOPICS: Record<string, string> = {
   transaksi: [
     "💸 Catat transaksi",
