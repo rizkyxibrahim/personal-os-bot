@@ -1,0 +1,14 @@
+{
+  "name": "personal-os-bot",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "personal-os-db",
+      "database_id": "276ed740-91f3-482b-b209-a762935715c1",
+      "migrations_dir": "migrations",
+    },
+  ],
+}
