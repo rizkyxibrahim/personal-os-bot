@@ -89,7 +89,7 @@ export async function monthSummary(
               COALESCE(SUM(CASE WHEN type = 'out' THEN amount END), 0) AS expense,
               COUNT(*) AS n
        FROM transactions
-       WHERE user_id = ?1 AND deleted_at IS NULL AND type IN ('in', 'out')
+       WHERE user_id = ?1 AND deleted_at IS NULL AND debt_id IS NULL AND type IN ('in', 'out')
          AND tx_date >= ?2 AND tx_date < ?3`,
     )
     .bind(userId, start, end)
@@ -108,7 +108,7 @@ export async function expenseByCategory(
       `SELECT COALESCE(c.name, '(tanpa kategori)') AS name, c.budget_type, SUM(t.amount) AS total
        FROM transactions t
        LEFT JOIN categories c ON c.id = t.category_id
-       WHERE t.user_id = ?1 AND t.type = 'out' AND t.deleted_at IS NULL
+       WHERE t.user_id = ?1 AND t.type = 'out' AND t.deleted_at IS NULL AND t.debt_id IS NULL
          AND t.tx_date >= ?2 AND t.tx_date < ?3
        GROUP BY t.category_id
        ORDER BY total DESC`,

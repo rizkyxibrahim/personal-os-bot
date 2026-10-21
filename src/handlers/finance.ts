@@ -111,6 +111,7 @@ export interface SaveParams {
   note: string | null;
   autoCategory: boolean;
   subscriptionId?: number | null;
+  goalId?: number | null;
 }
 
 // Simpan transaksi dan kembalikan teks konfirmasi (dipakai entri cepat, /qr, dan /bayarsub)
@@ -128,6 +129,7 @@ export async function saveEntry(
     note: p.note,
     txDate: p.date,
     subscriptionId: p.subscriptionId ?? null,
+    goalId: p.goalId ?? null,
   });
 
   const balance =

@@ -8,7 +8,8 @@ import { registerBudget } from "./handlers/budget";
 import { registerReports } from "./handlers/reports";
 import { registerSubscriptions } from "./handlers/subscriptions";
 import { registerTemplates } from "./handlers/templates";
-
+import { registerDebts } from "./handlers/debts";
+import { registerGoals } from "./handlers/goals";
 export function createBot(env: Env): Bot {
   const bot = new Bot(env.BOT_TOKEN);
 
@@ -21,6 +22,8 @@ export function createBot(env: Env): Bot {
   registerReports(bot, env);
   registerSubscriptions(bot, env);
   registerTemplates(bot, env);
+  registerDebts(bot, env);
+  registerGoals(bot, env);
 
   // Harus paling akhir: pesan biasa seperti "out 25k makan siang"
   bot.on("message:text", async (ctx) => {

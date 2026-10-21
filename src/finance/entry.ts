@@ -113,3 +113,15 @@ export function parseEntry(text: string, today: string): EntryResult {
     entry: { type, amount, date, words, hashCategory, account },
   };
 }
+
+// Untuk tempo/deadline: "31/12" yang tanggalnya sudah lewat dianggap tahun depan
+export function parseFutureDate(tok: string, today: string): string | null {
+  const d = parseEntryDate(tok, today);
+  if (!d) return null;
+
+  const hasYear = /^\d{4}-/.test(tok) || tok.split(/[/-]/).length === 3;
+  if (hasYear || d >= today) return d;
+
+  const bumped = `${Number(d.slice(0, 4)) + 1}${d.slice(4)}`;
+  return isValidDate(bumped) ? bumped : null;
+}
