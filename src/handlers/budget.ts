@@ -11,6 +11,7 @@ import { parseAmount } from "../parse";
 import { budgetState, forecast } from "../finance/budget";
 import * as q from "../finance/queries";
 import * as rep from "../finance/reports";
+import { startFlow } from "../wizard/engine";
 
 const STATE_ICON = { ok: "🟢", warn: "🟡", over: "🔴" } as const;
 const LABEL = { needs: "Needs", wants: "Wants", savings: "Savings" } as const;
@@ -26,6 +27,7 @@ export function registerBudget(bot: Bot, env: Env): void {
     const userId = ctx.from?.id;
     if (userId === undefined) return;
     await q.ensureDefaults(db, userId);
+    if (!ctx.match.trim()) return startFlow(ctx, env, "budget");
 
     const [name, limitRaw, alertRaw] = ctx.match
       .trim()

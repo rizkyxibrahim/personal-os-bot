@@ -7,6 +7,7 @@ import { buildSubList } from "../handlers/subscriptions";
 import { buildDashboard } from "../services/dashboard";
 import { buildRekap } from "../services/rekap";
 import { buildSaldo, buildToday, buildTodo } from "../services/views";
+import { showAccountList } from "./accounts";
 import { startFlow } from "./engine";
 import {
   showDebtPicker,
@@ -14,6 +15,7 @@ import {
   showGoalPicker,
   showSubPicker,
 } from "./pickers";
+import { sendBackup, startReset } from "./resetFlow";
 
 const MAIN_TEXT = "🧭 Menu\nMau ngapain?";
 
@@ -28,6 +30,7 @@ const GROUPS: Record<string, Group> = {
     items: [
       ["➖ Pengeluaran", "out"],
       ["➕ Pemasukan", "in"],
+      ["🔁 Transfer / tarik tunai", "transfer"],
     ],
   },
   lihat: {
@@ -72,6 +75,24 @@ const GROUPS: Record<string, Group> = {
       ["📋 Status", "subs"],
     ],
   },
+  akun: {
+    title: "🏦 Akun",
+    items: [
+      ["🏦 Kelola akun", "acct"],
+      ["➕ Akun baru", "acctnew"],
+      ["🛠️ Koreksi saldo", "adjust"],
+    ],
+  },
+  atur: {
+    title: "⚙️ Pengaturan",
+    items: [
+      ["💰 Budget baru", "budget"],
+      ["🗂️ Kategori baru", "cat"],
+      ["⚡ Template baru", "tpl"],
+      ["📦 Cadangan data", "backup"],
+      ["🧹 Reset data", "reset"],
+    ],
+  },
 };
 
 function mainKeyboard(): InlineKeyboard {
@@ -83,7 +104,10 @@ function mainKeyboard(): InlineKeyboard {
     .text("🎯 Goals", "m:g:goal")
     .row()
     .text("⚖️ Hutang & piutang", "m:g:hutang")
-    .text("📺 Langganan", "m:g:langganan");
+    .text("📺 Langganan", "m:g:langganan")
+    .row()
+    .text("🏦 Akun", "m:g:akun")
+    .text("⚙️ Pengaturan", "m:g:atur");
 }
 
 function groupKeyboard(group: Group): InlineKeyboard {
@@ -127,10 +151,7 @@ export async function handleMenuCallback(
 
   const action = (ctx.callbackQuery?.data ?? "").slice(2);
 
-  if (action === "menu") {
-    await editMenu(ctx, MAIN_TEXT, mainKeyboard());
-    return;
-  }
+  if (action === "menu") return editMenu(ctx, MAIN_TEXT, mainKeyboard());
   if (action.startsWith("g:")) {
     const group = GROUPS[action.slice(2)];
     if (group) await editMenu(ctx, group.title, groupKeyboard(group));
@@ -146,22 +167,34 @@ export async function handleMenuCallback(
     case "debt":
     case "recv":
     case "sub":
-      await startFlow(ctx, env, action);
-      return;
+    case "transfer":
+    case "adjust":
+    case "budget":
+    case "cat":
+    case "tpl":
+      return startFlow(ctx, env, action);
+    case "acctnew":
+      return startFlow(ctx, env, "acct");
+    case "reset":
+      return startReset(ctx, env);
 
-    // Pilih dari daftar
+    // Pilih dari daftar / kelola
     case "done":
-      await showDonePicker(ctx, env, userId);
-      return;
+      return showDonePicker(ctx, env, userId);
     case "save":
-      await showGoalPicker(ctx, env, userId);
-      return;
+      return showGoalPicker(ctx, env, userId);
     case "pay":
-      await showDebtPicker(ctx, env, userId);
-      return;
+      return showDebtPicker(ctx, env, userId);
     case "paysub":
-      await showSubPicker(ctx, env, userId);
-      return;
+      return showSubPicker(ctx, env, userId);
+    case "acct":
+      return showAccountList(ctx, env, userId);
+    case "backup":
+      return sendBackup(
+        ctx,
+        env,
+        "📦 Cadangan lengkap (JSON). Simpan di tempat aman.",
+      );
 
     // Lihat
     case "todo":

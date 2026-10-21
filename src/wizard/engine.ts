@@ -4,6 +4,7 @@ import { ensureDefaults } from "../finance/queries";
 import { getFlow } from "./registry";
 import { claimState, clearState, getState, saveState } from "./state";
 import type { Data, Flow, FlowCtx } from "./types";
+import { undoKeyboard } from "./keyboards";
 
 interface Btn {
   text: string;
@@ -11,7 +12,7 @@ interface Btn {
 }
 
 const COLUMNS = 2;
-const MAX_OPTIONS = 12;
+const MAX_OPTIONS = 20;
 const NO_KEYBOARD = { inline_keyboard: [] };
 
 const flowCtx = (env: Env, userId: number): FlowCtx => ({
@@ -112,9 +113,14 @@ async function render(
     nav.push({ text: "❌ Batal", data: cb(flow, index, "~cancel") });
 
     return {
-      text: `${flow.title} · ringkasan\n\n${await flow.summary(fc, data)}\n\nSimpan?`,
+      text: `${flow.title} · ringkasan\n\n${await flow.summary(fc, data)}\n\n${flow.question ?? "Simpan?"}`,
       kb: keyboard([
-        [{ text: "✅ Simpan", data: cb(flow, index, "~save") }],
+        [
+          {
+            text: flow.saveLabel ?? "✅ Simpan",
+            data: cb(flow, index, "~save"),
+          },
+        ],
         nav,
       ]),
     };
@@ -321,7 +327,7 @@ export async function handleFlowCallback(
       console.error(`[wizard] ${flow.id} gagal disimpan`, err);
       message = "⚠️ Gagal menyimpan. Coba lagi lewat /menu.";
     }
-    await show(ctx, "edit", message, null, state.promptId);
+    await show(ctx, "edit", message, undoKeyboard(message), state.promptId);
     return;
   }
 

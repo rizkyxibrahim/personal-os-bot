@@ -8,8 +8,11 @@ import { parseEntry, parseEntryDate, type Entry } from "../finance/entry";
 import * as q from "../finance/queries";
 import { budgetAlert } from "../finance/budget";
 import { startFlow } from "../wizard/engine";
-import { showDeletePicker } from "../wizard/pickers";
 import { buildSaldo } from "../services/views";
+import { showAccountList } from "../wizard/accounts";
+import { replyWithUndo } from "../wizard/keyboards";
+import { makeTransfer } from "../services/transfer";
+import { showDeletePicker, showEditPicker } from "../wizard/pickers";
 
 const ACCOUNT_TYPES: q.AccountType[] = ["cash", "bank", "ewallet", "asset"];
 const BUDGET_TYPES: q.BudgetType[] = ["needs", "wants", "savings"];
@@ -194,8 +197,8 @@ export async function handleQuickEntry(
     await ctx.reply("⚠️ Keterangan terlalu panjang (maksimal 200 karakter).");
     return true;
   }
-
-  await ctx.reply(
+  await replyWithUndo(
+    ctx,
     await saveEntry(env.DB, {
       userId,
       type: entry.type,
@@ -241,11 +244,12 @@ export function registerFinance(bot: Bot, env: Env): void {
   entryCommand(["out", "expense", "keluar"], "out");
 
   // ---- Saldo & akun ----
-  on(["saldo", "balance", "accounts", "akun"], async (ctx, userId) => {
+  on(["saldo", "balance", "accounts"], async (ctx, userId) => {
     return ctx.reply(await buildSaldo(db, userId));
   });
 
   on("addaccount", async (ctx, userId) => {
+    if (!ctx.match.trim()) return startFlow(ctx, env, "acct");
     const [name, ...rest] = ctx.match.trim().split(/\s+/).filter(Boolean);
     if (!name || !NAME_RE.test(name)) return ctx.reply(USAGE_ACCOUNT);
 
@@ -271,6 +275,7 @@ export function registerFinance(bot: Bot, env: Env): void {
   });
 
   on("setsaldoawal", async (ctx, userId) => {
+    if (!ctx.match.trim()) return showAccountList(ctx, env, userId);
     const [name = "", amountRaw = ""] = ctx.match.trim().split(/\s+/);
     const amount = amountRaw === "0" ? 0 : parseAmount(amountRaw);
     if (!name || amount === null)
@@ -289,13 +294,20 @@ export function registerFinance(bot: Bot, env: Env): void {
   });
 
   on("transfer", async (ctx, userId) => {
-    const [amountRaw = "", fromName = "", toName = "", ...noteWords] = ctx.match
-      .trim()
-      .split(/\s+/);
-    const amount = parseAmount(amountRaw);
+    if (!ctx.match.trim()) return startFlow(ctx, env, "transfer");
+
+    // "500k dari BCA ke Cash [catatan]" atau format lama "500k BCA Cash [catatan]"
+    const t = ctx.match.trim().split(/\s+/);
+    const amount = parseAmount(t[0] ?? "");
+    const verbose =
+      t[1]?.toLowerCase() === "dari" && t[3]?.toLowerCase() === "ke";
+    const fromName = (verbose ? t[2] : t[1]) ?? "";
+    const toName = (verbose ? t[4] : t[2]) ?? "";
+    const note = t.slice(verbose ? 5 : 3).join(" ") || null;
+
     if (amount === null || !fromName || !toName) {
       return ctx.reply(
-        "Format: /transfer Nominal Dari Ke [catatan]\nContoh: /transfer 500k BCA Cash",
+        "Format: /transfer 500k dari BCA ke Cash\nTanpa isi: bot bertanya satu per satu.\nTarik tunai: /tarik 500k BCA",
       );
     }
 
@@ -310,18 +322,67 @@ export function registerFinance(bot: Bot, env: Env): void {
     if (from.id === to.id)
       return ctx.reply("Akun asal dan tujuan tidak boleh sama.");
 
-    const id = await q.addTransaction(db, {
-      userId,
-      type: "transfer",
-      amount,
-      accountId: from.id,
-      toAccountId: to.id,
-      categoryId: null,
-      note: noteWords.join(" ") || null,
-      txDate: todayJakarta(),
-    });
-    return ctx.reply(
-      `🔁 Transfer tersimpan (#${id})\n${rupiah(amount)}: ${from.name} → ${to.name}\nCek hasilnya dengan /saldo`,
+    return replyWithUndo(
+      ctx,
+      await makeTransfer(db, userId, from, to, amount, note),
+    );
+  });
+
+  on("tarik", async (ctx, userId) => {
+    if (!ctx.match.trim())
+      return startFlow(ctx, env, "transfer", { kind: "cash" });
+
+    const [amountRaw = "", fromName = ""] = ctx.match.trim().split(/\s+/);
+    const amount = parseAmount(amountRaw);
+    if (amount === null || !fromName)
+      return ctx.reply(
+        "Format: /tarik 500k BCA\n(tarik tunai dari BCA ke akun tunai)",
+      );
+
+    const accounts = await q.listAccounts(db, userId);
+    const from = accounts.find(
+      (a) => a.name.toLowerCase() === fromName.toLowerCase(),
+    );
+    const cash = accounts.find((a) => a.type === "cash");
+    if (!from)
+      return ctx.reply(`Akun "${fromName}" tidak ditemukan. Lihat /saldo.`);
+    if (!cash)
+      return ctx.reply("Belum ada akun tunai. Buat dulu lewat /addaccount.");
+    if (from.id === cash.id)
+      return ctx.reply("Akun asal tidak boleh akun tunai.");
+
+    return replyWithUndo(
+      ctx,
+      await makeTransfer(db, userId, from, cash, amount, "Tarik tunai"),
+    );
+  });
+
+  on("tarik", async (ctx, userId) => {
+    if (!ctx.match.trim())
+      return startFlow(ctx, env, "transfer", { kind: "cash" });
+
+    const [amountRaw = "", fromName = ""] = ctx.match.trim().split(/\s+/);
+    const amount = parseAmount(amountRaw);
+    if (amount === null || !fromName)
+      return ctx.reply(
+        "Format: /tarik 500k BCA\n(tarik tunai dari BCA ke akun tunai)",
+      );
+
+    const accounts = await q.listAccounts(db, userId);
+    const from = accounts.find(
+      (a) => a.name.toLowerCase() === fromName.toLowerCase(),
+    );
+    const cash = accounts.find((a) => a.type === "cash");
+    if (!from)
+      return ctx.reply(`Akun "${fromName}" tidak ditemukan. Lihat /saldo.`);
+    if (!cash)
+      return ctx.reply("Belum ada akun tunai. Buat dulu lewat /addaccount.");
+    if (from.id === cash.id)
+      return ctx.reply("Akun asal tidak boleh akun tunai.");
+
+    return replyWithUndo(
+      ctx,
+      await makeTransfer(db, userId, from, cash, amount, "Tarik tunai"),
     );
   });
 
@@ -346,6 +407,7 @@ export function registerFinance(bot: Bot, env: Env): void {
   });
 
   on("addcategory", async (ctx, userId) => {
+    if (!ctx.match.trim()) return startFlow(ctx, env, "cat");
     const [name, typeRaw, budgetRaw] = ctx.match
       .trim()
       .split(/\s+/)
@@ -404,6 +466,7 @@ export function registerFinance(bot: Bot, env: Env): void {
 
   // ---- Koreksi ----
   on("edit", async (ctx, userId) => {
+    if (!ctx.match.trim()) return showEditPicker(ctx, env, userId);
     const [idRaw = "", field = "", ...valueWords] = ctx.match
       .trim()
       .split(/\s+/);

@@ -33,4 +33,6 @@ export interface Flow {
   steps: Step[];
   summary: (fc: FlowCtx, data: Data) => string | Promise<string>;
   finish: (fc: FlowCtx, data: Data) => Promise<string>;
+  question?: string;
+  saveLabel?: string;
 }

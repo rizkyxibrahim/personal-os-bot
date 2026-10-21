@@ -6,6 +6,7 @@ import { parseEntry, parseEntryDate } from "../finance/entry";
 import * as q from "../finance/queries";
 import * as tpl from "../finance/templates";
 import { resolveEntry, saveEntry } from "./finance";
+import { startFlow } from "../wizard/engine";
 
 const SHORTCUT_RE = /^[\p{L}\p{N}_-]{1,20}$/u;
 const MAX_TEMPLATES = 50;
@@ -26,6 +27,9 @@ export function registerTemplates(bot: Bot, env: Env): void {
     const userId = ctx.from?.id;
     if (userId === undefined) return;
     await q.ensureDefaults(db, userId);
+    const raw = ctx.match.trim().toLowerCase();
+    if (raw === "" || raw === "add" || raw === "tambah")
+      return startFlow(ctx, env, "tpl");
 
     const [action = "", shortcut = "", ...rest] = ctx.match.trim().split(/\s+/);
 

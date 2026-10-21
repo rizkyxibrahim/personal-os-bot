@@ -1,0 +1,2 @@
+-- Migration number: 0009 	 2026-10-21T13:10:40.502Z
+ALTER TABLE accounts ADD COLUMN archived INTEGER NOT NULL DEFAULT 0;

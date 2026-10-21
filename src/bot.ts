@@ -2,44 +2,70 @@ import { Bot } from "grammy";
 import type { Env } from "./env";
 import { ownerOnly } from "./middleware/auth";
 import { registerBudget } from "./handlers/budget";
-import { handleQuickEntry, registerFinance } from "./handlers/finance";
 import { registerDebts } from "./handlers/debts";
+import { handleQuickEntry, registerFinance } from "./handlers/finance";
 import { registerGoals } from "./handlers/goals";
 import { registerHelp } from "./handlers/help";
 import { registerOverview } from "./handlers/overview";
 import { registerReports } from "./handlers/reports";
+import { registerSettings } from "./handlers/settings";
 import { registerStart } from "./handlers/start";
 import { registerSubscriptions } from "./handlers/subscriptions";
 import { registerTasks } from "./handlers/tasks";
 import { registerTemplates } from "./handlers/templates";
+import { handleAccountCallback } from "./wizard/accounts";
+import {
+  accountFlow,
+  accountInitFlow,
+  accountRenameFlow,
+} from "./wizard/accountFlows";
+import { adjustFlow } from "./wizard/adjustFlow";
+import { debtFlow } from "./wizard/debtFlow";
+import { debtPayFlow } from "./wizard/debtPayFlow";
 import { entryFlow } from "./wizard/entryFlow";
 import { handleFlowCallback, handleFlowText } from "./wizard/engine";
+import { goalFlow } from "./wizard/goalFlow";
+import { goalSaveFlow } from "./wizard/goalSaveFlow";
 import { handleMenuCallback, showMenu } from "./wizard/menu";
 import { handlePickerCallback } from "./wizard/pickers";
 import { registerFlow } from "./wizard/registry";
+import { resetFlow } from "./wizard/resetFlow";
+import { budgetFlow, categoryFlow, templateFlow } from "./wizard/setupFlows";
 import { clearState, getState } from "./wizard/state";
-import { taskFlow } from "./wizard/taskFlow";
-
-import { debtFlow } from "./wizard/debtFlow";
-import { debtPayFlow } from "./wizard/debtPayFlow";
-import { goalFlow } from "./wizard/goalFlow";
-import { goalSaveFlow } from "./wizard/goalSaveFlow";
 import { subFlow } from "./wizard/subFlow";
 import { subPayFlow } from "./wizard/subPayFlow";
+import { taskFlow } from "./wizard/taskFlow";
+import { transferFlow } from "./wizard/transferFlow";
+import { handleTxCallback } from "./wizard/txActions";
+import { txEditFlow } from "./wizard/txEditFlow";
 
 export function createBot(env: Env): Bot {
   const bot = new Bot(env.BOT_TOKEN);
 
-  registerFlow(entryFlow("out"));
-  registerFlow(entryFlow("in"));
-  registerFlow(taskFlow());
-  registerFlow(goalFlow());
-  registerFlow(debtFlow("payable"));
-  registerFlow(debtFlow("receivable"));
-  registerFlow(debtPayFlow());
-  registerFlow(goalSaveFlow());
-  registerFlow(subFlow());
-  registerFlow(subPayFlow());
+  for (const flow of [
+    entryFlow("out"),
+    entryFlow("in"),
+    taskFlow(),
+    goalFlow(),
+    debtFlow("payable"),
+    debtFlow("receivable"),
+    debtPayFlow(),
+    goalSaveFlow(),
+    subFlow(),
+    subPayFlow(),
+    accountFlow(),
+    accountRenameFlow(),
+    accountInitFlow(),
+    transferFlow(),
+    txEditFlow(),
+    adjustFlow(),
+    resetFlow(),
+    categoryFlow(),
+    budgetFlow(),
+    templateFlow(),
+  ]) {
+    registerFlow(flow);
+  }
 
   // Error apa pun jangan sampai membuat Telegram mengirim ulang pesan yang sama berulang-ulang
   bot.catch(async (err) => {
@@ -77,6 +103,7 @@ export function createBot(env: Env): Bot {
 
   registerStart(bot, env);
   registerHelp(bot);
+  registerSettings(bot, env);
   registerFinance(bot, env);
   registerBudget(bot, env);
   registerReports(bot, env);
@@ -92,6 +119,8 @@ export function createBot(env: Env): Bot {
     if (data.startsWith("w:")) return handleFlowCallback(ctx, env);
     if (data.startsWith("p:")) return handlePickerCallback(ctx, env);
     if (data.startsWith("m:")) return handleMenuCallback(ctx, env);
+    if (data.startsWith("a:")) return handleAccountCallback(ctx, env);
+    if (data.startsWith("t:")) return handleTxCallback(ctx, env);
     await ctx.answerCallbackQuery();
   });
 

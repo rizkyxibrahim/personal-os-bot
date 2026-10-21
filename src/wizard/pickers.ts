@@ -1,13 +1,13 @@
 import { InlineKeyboard, type Context } from "grammy";
 import type { Env } from "../env";
+import { formatDue, todayJakarta } from "../dates";
 import { rupiah } from "../format";
-import * as q from "../finance/queries";
-import { todayJakarta, daysBetween, formatDue } from "../dates";
-import { PRIORITY_ICON } from "../services/taskView";
-import { completeTask, listOpenTasks } from "../tasksDb";
 import * as debts from "../finance/debts";
 import * as goals from "../finance/goals";
+import * as q from "../finance/queries";
 import * as subs from "../finance/subscriptions";
+import { PRIORITY_ICON } from "../services/taskView";
+import { completeTask, listOpenTasks } from "../tasksDb";
 import { startFlow } from "./engine";
 
 const MAX_TASKS = 10;
@@ -53,7 +53,11 @@ async function doneView(
   return { text: top.filter(Boolean).join("\n\n"), kb };
 }
 
-async function deleteView(env: Env, userId: number): Promise<View> {
+async function txPickView(
+  env: Env,
+  userId: number,
+  action: "del" | "edit",
+): Promise<View> {
   const rows = await q.listRecent(env.DB, userId, MAX_TX);
   if (rows.length === 0) return { text: "Belum ada transaksi.", kb: null };
 
@@ -69,14 +73,86 @@ async function deleteView(env: Env, userId: number): Promise<View> {
         : r.account_name);
     kb.text(
       truncate(`#${r.id} ${icon} ${rupiah(r.amount)} · ${what}`, 48),
-      `p:del:${r.id}`,
+      `p:${action}:${r.id}`,
     );
   });
 
   return {
-    text: "Pilih transaksi yang mau dihapus.\n(Bisa dipulihkan dengan /restore ID)",
+    text:
+      action === "del"
+        ? "Pilih transaksi yang mau dihapus.\n(Bisa dipulihkan dengan /restore ID)"
+        : "Pilih transaksi yang mau diubah:",
     kb,
   };
+}
+async function debtView(env: Env, userId: number): Promise<View> {
+  const list = (await debts.listDebts(env.DB, userId)).filter(
+    (d) => d.principal - d.paid > 0,
+  );
+  if (list.length === 0) {
+    return {
+      text: "Tidak ada hutang atau piutang yang masih berjalan.",
+      kb: null,
+    };
+  }
+
+  const kb = new InlineKeyboard();
+  list.slice(0, MAX_TASKS).forEach((d, i) => {
+    if (i > 0) kb.row();
+    const icon = d.direction === "payable" ? "🔻" : "🔺";
+    kb.text(
+      truncate(
+        `${icon} D${d.id} ${d.counterparty} · sisa ${rupiah(d.principal - d.paid)}`,
+        48,
+      ),
+      `p:debt:${d.id}`,
+    );
+  });
+  return { text: "Pilih hutang (🔻) atau piutang (🔺):", kb };
+}
+
+async function goalView(env: Env, userId: number): Promise<View> {
+  const list = await goals.listGoals(env.DB, userId);
+  if (list.length === 0) {
+    return { text: "Belum ada goal. Buat dengan /addgoal.", kb: null };
+  }
+
+  const kb = new InlineKeyboard();
+  list.slice(0, MAX_TASKS).forEach((g, i) => {
+    if (i > 0) kb.row();
+    const pct = Math.round((g.saved * 100) / g.target);
+    kb.text(
+      truncate(`${g.icon ?? "🎯"} ${g.name} · ${pct}%`, 48),
+      `p:goal:${g.id}`,
+    );
+  });
+  return { text: "Pilih goal yang mau ditabung:", kb };
+}
+
+async function subView(env: Env, userId: number): Promise<View> {
+  const all = await subs.listSubscriptions(
+    env.DB,
+    userId,
+    todayJakarta().slice(0, 7),
+  );
+  if (all.length === 0) {
+    return { text: "Belum ada langganan. Tambah dengan /addsub.", kb: null };
+  }
+
+  const unpaid = all.filter((s) => !s.paid);
+  if (unpaid.length === 0) {
+    return { text: "Semua langganan bulan ini sudah dibayar. ✅", kb: null };
+  }
+
+  const kb = new InlineKeyboard();
+  unpaid.slice(0, MAX_TASKS).forEach((s, i) => {
+    if (i > 0) kb.row();
+    kb.text(
+      truncate(`📺 ${s.name} · ${rupiah(s.amount)} (tgl ${s.bill_day})`, 48),
+      `p:sub:${s.id}`,
+    );
+  });
+  return { text: "Pilih langganan yang mau dibayar:", kb };
 }
 
 async function send(ctx: Context, view: View): Promise<void> {
@@ -102,70 +178,28 @@ async function dropKeyboard(ctx: Context): Promise<void> {
   }
 }
 
-async function debtView(env: Env, userId: number): Promise<View> {
-  const list = (await debts.listDebts(env.DB, userId)).filter(
-    (d) => d.principal - d.paid > 0,
-  );
-  if (list.length === 0)
-    return {
-      text: "Tidak ada hutang atau piutang yang masih berjalan.",
-      kb: null,
-    };
-
-  const kb = new InlineKeyboard();
-  list.slice(0, MAX_TASKS).forEach((d, i) => {
-    if (i > 0) kb.row();
-    const icon = d.direction === "payable" ? "🔻" : "🔺";
-    kb.text(
-      truncate(
-        `${icon} D${d.id} ${d.counterparty} · sisa ${rupiah(d.principal - d.paid)}`,
-        48,
-      ),
-      `p:debt:${d.id}`,
-    );
-  });
-  return { text: "Pilih hutang (🔻) atau piutang (🔺):", kb };
+export async function showDonePicker(
+  ctx: Context,
+  env: Env,
+  userId: number,
+): Promise<void> {
+  await send(ctx, await doneView(env, userId, null));
 }
 
-async function goalView(env: Env, userId: number): Promise<View> {
-  const list = await goals.listGoals(env.DB, userId);
-  if (list.length === 0)
-    return { text: "Belum ada goal. Buat dengan /addgoal.", kb: null };
-
-  const kb = new InlineKeyboard();
-  list.slice(0, MAX_TASKS).forEach((g, i) => {
-    if (i > 0) kb.row();
-    const pct = Math.round((g.saved * 100) / g.target);
-    kb.text(
-      truncate(`${g.icon ?? "🎯"} ${g.name} · ${pct}%`, 48),
-      `p:goal:${g.id}`,
-    );
-  });
-  return { text: "Pilih goal yang mau ditabung:", kb };
+export async function showDeletePicker(
+  ctx: Context,
+  env: Env,
+  userId: number,
+): Promise<void> {
+  await send(ctx, await txPickView(env, userId, "del"));
 }
 
-async function subView(env: Env, userId: number): Promise<View> {
-  const all = await subs.listSubscriptions(
-    env.DB,
-    userId,
-    todayJakarta().slice(0, 7),
-  );
-  if (all.length === 0)
-    return { text: "Belum ada langganan. Tambah dengan /addsub.", kb: null };
-
-  const unpaid = all.filter((s) => !s.paid);
-  if (unpaid.length === 0)
-    return { text: "Semua langganan bulan ini sudah dibayar. ✅", kb: null };
-
-  const kb = new InlineKeyboard();
-  unpaid.slice(0, MAX_TASKS).forEach((s, i) => {
-    if (i > 0) kb.row();
-    kb.text(
-      truncate(`📺 ${s.name} · ${rupiah(s.amount)} (tgl ${s.bill_day})`, 48),
-      `p:sub:${s.id}`,
-    );
-  });
-  return { text: "Pilih langganan yang mau dibayar:", kb };
+export async function showEditPicker(
+  ctx: Context,
+  env: Env,
+  userId: number,
+): Promise<void> {
+  await send(ctx, await txPickView(env, userId, "edit"));
 }
 
 export async function showDebtPicker(
@@ -190,22 +224,6 @@ export async function showSubPicker(
   userId: number,
 ): Promise<void> {
   await send(ctx, await subView(env, userId));
-}
-
-export async function showDonePicker(
-  ctx: Context,
-  env: Env,
-  userId: number,
-): Promise<void> {
-  await send(ctx, await doneView(env, userId, null));
-}
-
-export async function showDeletePicker(
-  ctx: Context,
-  env: Env,
-  userId: number,
-): Promise<void> {
-  await send(ctx, await deleteView(env, userId));
 }
 
 // Tombol: p:<aksi>:<id>
@@ -247,8 +265,21 @@ export async function handlePickerCallback(
         : `Transaksi #${id} sudah tidak aktif.`,
       kb: null,
     });
+    return;
   }
 
+  if (action === "edit") {
+    if (!(await q.getTxRow(env.DB, userId, id))) {
+      await edit(ctx, {
+        text: `Transaksi #${id} sudah tidak aktif.`,
+        kb: null,
+      });
+      return;
+    }
+    await dropKeyboard(ctx);
+    await startFlow(ctx, env, "txedit", { txId: id });
+    return;
+  }
   if (action === "debt") {
     if (!(await debts.getDebt(env.DB, userId, id))) {
       await edit(ctx, { text: `Catatan D${id} sudah tidak aktif.`, kb: null });

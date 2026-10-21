@@ -122,7 +122,7 @@ export async function listAccounts(
                           WHERE t.user_id = a.user_id AND t.deleted_at IS NULL
                             AND t.type IN ('out', 'transfer') AND t.account_id = a.id), 0) AS balance
        FROM accounts a
-       WHERE a.user_id = ?1
+       WHERE a.user_id = ?1 AND a.archived = 0
        ORDER BY a.is_default DESC, a.name`,
     )
     .bind(userId)
@@ -137,7 +137,7 @@ export async function findAccount(
 ): Promise<Account | null> {
   return db
     .prepare(
-      "SELECT id, name, type, initial_balance, is_default FROM accounts WHERE user_id = ?1 AND name = ?2",
+      "SELECT id, name, type, initial_balance, is_default FROM accounts WHERE user_id = ?1 AND name = ?2 AND archived = 0",
     )
     .bind(userId, name)
     .first<Account>();
@@ -149,7 +149,7 @@ export async function getDefaultAccount(
 ): Promise<Account | null> {
   return db
     .prepare(
-      "SELECT id, name, type, initial_balance, is_default FROM accounts WHERE user_id = ?1 ORDER BY is_default DESC, id LIMIT 1",
+      "SELECT id, name, type, initial_balance, is_default FROM accounts WHERE user_id = ?1 AND archived = 0 ORDER BY is_default DESC, id LIMIT 1",
     )
     .bind(userId)
     .first<Account>();
@@ -217,17 +217,21 @@ export async function findCategory(
 export async function addCategory(
   db: D1Database,
   userId: number,
-  c: { name: string; type: CategoryType; budgetType: BudgetType | null },
+  c: {
+    name: string;
+    type: CategoryType;
+    budgetType: BudgetType | null;
+    icon?: string | null;
+  },
 ): Promise<boolean> {
   const res = await db
     .prepare(
-      "INSERT OR IGNORE INTO categories (user_id, name, type, budget_type) VALUES (?1, ?2, ?3, ?4)",
+      "INSERT OR IGNORE INTO categories (user_id, name, type, budget_type, icon) VALUES (?1, ?2, ?3, ?4, ?5)",
     )
-    .bind(userId, c.name, c.type, c.budgetType)
+    .bind(userId, c.name, c.type, c.budgetType, c.icon ?? null)
     .run();
   return res.meta.changes > 0;
 }
-
 // ---------- Transaksi ----------
 
 export const TX_SELECT = `
@@ -386,4 +390,17 @@ export async function updateTransaction(
     .bind(...values, id, userId)
     .run();
   return res.meta.changes > 0;
+}
+
+export async function getTxRow(
+  db: D1Database,
+  userId: number,
+  id: number,
+): Promise<TxRow | null> {
+  return db
+    .prepare(
+      `${TX_SELECT} WHERE t.user_id = ?1 AND t.id = ?2 AND t.deleted_at IS NULL`,
+    )
+    .bind(userId, id)
+    .first<TxRow>();
 }
