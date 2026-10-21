@@ -1,66 +1,20 @@
 import type { Bot } from "grammy";
 
 const MAIN = [
-  "📖 Bantuan Personal OS",
+  "📖 Personal OS",
   "",
-  '💸 Catat transaksi (boleh tanpa "/")',
-  "out 25k makan siang",
-  "in 5jt gaji [BCA]",
-  "05/10 out 50k bensin",
-  "Detail: /help transaksi",
+  "💸 Catat: out 25k makan siang · in 5jt gaji [BCA]",
+  "🏦 Akun: /saldo · /addaccount · /transfer",
+  "🗂️ Kategori: /kategori · /addcategory",
+  "💰 Laporan: /budget · /cekbudget · /rekap · /overview · /cari · /export",
+  "📅 Riwayat: /details · /edit · /hapus · /recyclebin",
+  "⚡ Rutin: /qr · /template · /addsub · /ceksub · /bayarsub",
+  "⚖️ Hutang: /hutang · /piutang · /bayar · /cekhutang",
+  "🎯 Goals: /addgoal · /save · /cekgoal",
   "",
-  "🏦 Akun & saldo",
-  "/saldo — saldo semua akun",
-  "/addaccount BCA bank 2jt — tambah akun",
-  "/transfer 500k BCA Cash — pindah dana",
-  "Detail: /help akun",
-  "",
-  "🗂️ Kategori",
-  "/kategori — daftar kategori",
-  "/addcategory Seblak expense wants",
-  "Detail: /help kategori",
-  "",
-  "💰 Budget & laporan",
-  "/budget Makan 3jt 80 — atur budget bulanan",
-  "/cekbudget — status budget & 50/30/20",
-  "/rekap — laporan bulan ini (/rekap lalu)",
-  "/cari kopi — cari transaksi",
-  "/export — CSV bulan ini",
-  "Detail: /help budget, /help laporan",
-  "",
-  "⚡ Template & langganan",
-  "/template add kopi out 25k kopi susu — simpan template",
-  "/qr kopi — catat dari template",
-  "/addsub Netflix 186k 5 — tambah langganan",
-  "/ceksub — status langganan bulan ini",
-  "/bayarsub 1 — bayar langganan",
-  "Detail: /help template, /help langganan",
-  "",
-  "📅 Riwayat & koreksi",
-  "/details — transaksi hari ini",
-  "/details 05/10 — tanggal tertentu",
-  "/edit 12 amount 30k — ubah transaksi",
-  "/hapus 12 — hapus (bisa dipulihkan)",
-  "/recyclebin — lihat yang dihapus",
-  "",
-  "⚖️ Hutang & piutang",
-  "/hutang TemenA 5jt pinjaman 31/12 — hutang baru",
-  "/piutang Budi 1jt — piutang baru",
-  "/bayar D1 2jt — bayar (/terima untuk piutang)",
-  "/cekhutang — daftar & sisa",
-  "Detail: /help hutang",
-  "",
-  "🎯 Goals",
-  "/addgoal Laptop 25jt 30/06/2027 — buat target",
-  "/save G1 500k — nabung ke goal",
-  "/cekgoal — progres semua goal",
-  "Detail: /help goal",
-  "",
-  "⚙️ Umum",
-  "/start — dashboard hari ini",
-  "/help — bantuan ini",
-  "",
-  "🚧 Segera hadir: struk, pajak, chart, net worth, tugas, berita, saham, email.",
+  "Detail dan contoh: /help transaksi, akun, kategori, budget, laporan, template, langganan, hutang, goal",
+  "Dashboard: /start",
+  "🚧 Segera: tugas, berita, email, struk",
 ].join("\n");
 
 const TOPICS: Record<string, string> = {
@@ -137,6 +91,11 @@ const TOPICS: Record<string, string> = {
     "",
     "Bulan: kosong = bulan ini, lalu, 09/26, 09/2026, 2026-09",
     "Transfer antar akun tidak dihitung sebagai pemasukan atau pengeluaran.",
+    "/overview — kekayaan bersih, ringkasan bulan ini, dan skor kesehatan keuangan",
+    "",
+    "Kekayaan bersih = kas & bank + aset + piutang − hutang.",
+    "Skor kesehatan (0-100) dari 4 komponen: tabungan 35 poin (sisa ≥20% dari pemasukan = penuh), budget 25 (budget yang tidak terlampaui), dana darurat 25 (kas ÷ rata-rata pengeluaran bulanan; 6 bulan = penuh), hutang 15 (hutang ÷ pemasukan bulan ini; ≤1× = penuh, ≥6× = nol). Komponen tanpa data dilewati.",
+    "Ini indikator sederhana, bukan nasihat keuangan.",
   ].join("\n"),
   template: [
     "⚡ Template cepat",
@@ -197,16 +156,25 @@ const TOPICS: Record<string, string> = {
   ].join("\n"),
 };
 
+const ALIASES: Record<string, string> = {
+  goals: "goal",
+  piutang: "hutang",
+  debt: "hutang",
+  sub: "langganan",
+  subscription: "langganan",
+  qr: "template",
+  templates: "template",
+  report: "laporan",
+  overview: "laporan",
+};
+
 export function registerHelp(bot: Bot): void {
   bot.command("help", (ctx) => {
-    const topic = ctx.match.trim().toLowerCase();
+    const topic = ctx.match.trim().toLowerCase().replace(/^\//, "");
     if (!topic) return ctx.reply(MAIN);
 
-    const text = TOPICS[topic];
-    if (!text)
-      return ctx.reply(
-        `Topik "${topic}" tidak ada. Pilih: ${Object.keys(TOPICS).join(", ")}\n\n${MAIN}`,
-      );
+    const text = TOPICS[ALIASES[topic] ?? topic];
+    if (!text) return ctx.reply(`Topik "${topic}" tidak ada.\n\n${MAIN}`);
     return ctx.reply(text);
   });
 }
