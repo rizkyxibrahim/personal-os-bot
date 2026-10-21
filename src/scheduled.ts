@@ -1,6 +1,7 @@
-import { Api } from "grammy";
+import { Api, InputFile } from "grammy";
 import type { Env } from "./env";
 import { nowJakarta, prevMonth } from "./dates";
+import { buildBackup, countData } from "./services/backup";
 import { buildDashboard } from "./services/dashboard";
 import { buildDailyFinance, buildTaskReview } from "./services/digests";
 import { claim, cleanup, release } from "./services/notifications";
@@ -12,14 +13,17 @@ interface JobContext {
   name: string;
   today: string;
   period: string;
+  force: boolean; // true hanya saat pengujian lokal
 }
 
 interface Job {
   name: string;
   at: string; // "HH:MM" WIB
+  weekday?: number; // 0 = Minggu ... 6 = Sabtu (menurut tanggal WIB)
   monthlyOnDay?: number;
   period: (today: string) => string; // kunci anti-duplikat
-  build: (c: JobContext) => Promise<string>;
+  build?: (c: JobContext) => Promise<string>; // pesan teks
+  deliver?: (c: JobContext, api: Api) => Promise<void>; // pengiriman khusus (mis. file)
 }
 
 const GRACE_MINUTES = 90; // lewat dari ini, pesan dianggap basi dan dilewati
@@ -51,16 +55,40 @@ const JOBS: Job[] = [
     build: async (c) =>
       `📅 Laporan bulanan\n\n${await buildRekap(c.env.DB, c.userId, c.period)}`,
   },
+  {
+    name: "weekly_backup",
+    at: "20:00",
+    weekday: 0,
+    period: (d) => d,
+    deliver: async (c, api) => {
+      const counts = await countData(c.env.DB, c.userId);
+      const empty = Object.values(counts).every((n) => n === 0);
+      if (empty && !c.force) return; // belum ada data, tidak perlu dicadangkan
+
+      const backup = await buildBackup(c.env.DB, c.userId);
+      await api.sendDocument(
+        c.userId,
+        new InputFile(new TextEncoder().encode(backup.json), backup.filename),
+        {
+          caption:
+            "📦 Cadangan mingguan otomatis (JSON). Berisi data keuanganmu, simpan di tempat aman.",
+        },
+      );
+    },
+  },
 ];
 
 const hhmm = (m: number) =>
   `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+const weekdayOf = (date: string) => new Date(`${date}T00:00:00Z`).getUTCDay();
 
 function isDue(job: Job, date: string, minutes: number): boolean {
   if (
     job.monthlyOnDay !== undefined &&
     Number(date.slice(8, 10)) !== job.monthlyOnDay
   )
+    return false;
+  if (job.weekday !== undefined && weekdayOf(date) !== job.weekday)
     return false;
   const [h, m] = job.at.split(":").map(Number);
   const start = h * 60 + m;
@@ -102,14 +130,17 @@ export async function runScheduled(env: Env, forceJob?: string): Promise<void> {
 
     try {
       name ??= await ownerName(api, ownerId);
-      const text = await job.build({
+      const ctx: JobContext = {
         env,
         userId: ownerId,
         name,
         today: date,
         period,
-      });
-      await api.sendMessage(ownerId, text);
+        force: Boolean(forceJob),
+      };
+
+      if (job.deliver) await job.deliver(ctx, api);
+      else if (job.build) await api.sendMessage(ownerId, await job.build(ctx));
     } catch (err) {
       console.error(`[cron] ${job.name} gagal`, err);
       if (!forceJob) await release(env.DB, ownerId, job.name, period);

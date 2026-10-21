@@ -7,7 +7,7 @@ const MAIN = [
   "💸 Catat cepat: out 25k makan siang · in 5jt gaji [BCA]",
   "🔁 Pindah dana: /transfer 500k dari BCA ke Cash · /tarik 500k BCA",
   "✏️ Salah input? Tekan tombol Ubah/Hapus di bawah pesan konfirmasi, atau /edit · /hapus · /koreksi",
-  "📊 Laporan: /rekap · /overview · /cekbudget · /saldo",
+  "📊 Laporan: /rekap · /overview · /cekbudget · /saldo · /berita",
   "🏠 Dashboard: /start · Batalkan proses: /batal",
   "",
   "ℹ️ Detail: /help <topik>",
@@ -106,6 +106,16 @@ const TOPICS: Record<string, string> = {
     "Skor kesehatan (0-100) dari 4 komponen: tabungan 35 poin (sisa ≥20% dari pemasukan = penuh), budget 25 (budget yang tidak terlampaui), dana darurat 25 (kas ÷ rata-rata pengeluaran bulanan; 6 bulan = penuh), hutang 15 (hutang ÷ pemasukan bulan ini; ≤1× = penuh, ≥6× = nol). Komponen tanpa data dilewati.",
     "Ini indikator sederhana, bukan nasihat keuangan.",
   ].join("\n"),
+  berita: [
+    "📰 Berita",
+    "",
+    "/berita — berita Indonesia terbaru, dengan tombol kategori",
+    "/berita ekonomi | teknologi | pasar | indonesia",
+    "/beritastatus — cek sumber RSS mana yang berhasil dimuat",
+    "",
+    "Menampilkan judul, sumber, waktu, dan tautan asli dari RSS media. Belum ada ringkasan AI dan belum ada rekomendasi saham.",
+    "Hasil disimpan sementara (sekitar 20 menit) supaya cepat. Brief pagi memuat 3 berita teratas.",
+  ].join("\n"),
   template: [
     "⚡ Template cepat",
     "",
@@ -185,6 +195,7 @@ const TOPICS: Record<string, string> = {
     "20:30 — review tugas",
     "21:00 — ringkasan keuangan hari ini",
     "Tanggal 1, 08:00 — rekap bulan lalu",
+    "Minggu 20:00 — cadangan data (file JSON)",
     "",
     "Pesan bisa terlambat (paling lama sekitar 90 menit) dan tidak pernah terkirim dua kali.",
     "Pengingat langganan memakai remind:N pada /addsub. Pengingat hutang muncul 3 hari sebelum tempo.",
@@ -205,6 +216,7 @@ const ALIASES: Record<string, string> = {
   reset: "koreksi",
   backup: "koreksi",
   transfer: "akun",
+  news: "berita",
 };
 
 export function registerHelp(bot: Bot): void {

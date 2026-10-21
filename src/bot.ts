@@ -38,6 +38,7 @@ import { taskFlow } from "./wizard/taskFlow";
 import { transferFlow } from "./wizard/transferFlow";
 import { handleTxCallback } from "./wizard/txActions";
 import { txEditFlow } from "./wizard/txEditFlow";
+import { handleNewsCallback, registerNews } from "./handlers/news";
 
 export function createBot(env: Env): Bot {
   const bot = new Bot(env.BOT_TOKEN);
@@ -113,6 +114,7 @@ export function createBot(env: Env): Bot {
   registerGoals(bot, env);
   registerOverview(bot, env);
   registerTasks(bot, env);
+  registerNews(bot, env);
 
   bot.on("callback_query:data", async (ctx) => {
     const data = ctx.callbackQuery.data;
@@ -121,6 +123,7 @@ export function createBot(env: Env): Bot {
     if (data.startsWith("m:")) return handleMenuCallback(ctx, env);
     if (data.startsWith("a:")) return handleAccountCallback(ctx, env);
     if (data.startsWith("t:")) return handleTxCallback(ctx, env);
+    if (data.startsWith("n:")) return handleNewsCallback(ctx, env);
     await ctx.answerCallbackQuery();
   });
 

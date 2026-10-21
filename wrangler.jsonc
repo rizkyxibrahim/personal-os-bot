@@ -7,7 +7,7 @@
     {
       "binding": "DB",
       "database_name": "personal-os-db",
-      "database_id": "276ed740-91f3-482b-b209-a762935715c1",
+      "database_id": "f11f1f81-f313-4b48-9e3c-dda7295d69c7",
       "migrations_dir": "migrations",
     },
   ],

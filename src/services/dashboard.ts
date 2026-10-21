@@ -6,6 +6,9 @@ import * as q from "../finance/queries";
 import * as subs from "../finance/subscriptions";
 import { listOpenTasks } from "../tasksDb";
 import { formatTask, groupTasks } from "./taskView";
+import { CATEGORIES } from "../news/feeds";
+import { ago } from "../news/format";
+import { getNews } from "../news/news";
 
 async function balanceSection(
   env: Env,
@@ -119,6 +122,19 @@ async function tasksSection(
   return lines.join("\n");
 }
 
+async function newsSection(env: Env): Promise<string> {
+  const title = "📰 BERITA";
+  const { items } = await getNews(env.DB, CATEGORIES[0], 3);
+  if (items.length === 0)
+    return `${title}\nBelum bisa dimuat. Coba /berita nanti.`;
+
+  const lines = items.map((n) => {
+    const t = n.title.length > 110 ? `${n.title.slice(0, 109)}…` : n.title;
+    return `• ${t} (${n.source}${n.ts ? ` · ${ago(n.ts)}` : ""})`;
+  });
+  return [title, ...lines, "Selengkapnya: /berita"].join("\n");
+}
+
 // Satu bagian gagal tidak boleh merusak seluruh dashboard
 async function safe(
   label: string,
@@ -148,6 +164,7 @@ export async function buildDashboard(
         () => remindersSection(env, userId, today),
         "⏰ PENGINGAT",
       ),
+      safe("news", () => newsSection(env), "📰 BERITA"),
       safe("tasks", () => tasksSection(env, userId, today), "✅ TUGAS"),
     ])
   ).filter((s): s is string => Boolean(s));
@@ -158,7 +175,7 @@ export async function buildDashboard(
     "",
     sections.join("\n\n"),
     "",
-    "🚧 Berita dan email: segera hadir",
+    "🚧 Email: segera hadir",
     "Ketik /menu untuk tombol, atau /help untuk daftar perintah.",
   ].join("\n");
 }

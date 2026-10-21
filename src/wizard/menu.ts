@@ -16,6 +16,8 @@ import {
   showSubPicker,
 } from "./pickers";
 import { sendBackup, startReset } from "./resetFlow";
+import { sendNews } from "../handlers/news";
+import { CATEGORIES } from "../news/feeds";
 
 const MAIN_TEXT = "🧭 Menu\nMau ngapain?";
 
@@ -38,6 +40,7 @@ const GROUPS: Record<string, Group> = {
     items: [
       ["💰 Saldo", "saldo"],
       ["📊 Rekap bulan ini", "rekap"],
+      ["📰 Berita", "news"],
       ["🏠 Dashboard", "start"],
     ],
   },
@@ -225,5 +228,7 @@ export async function handleMenuCallback(
     case "subs":
       await ctx.reply(await buildSubList(env.DB, userId));
       return;
+    case "news":
+      return sendNews(ctx, env, CATEGORIES[0]);
   }
 }
