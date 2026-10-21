@@ -19,7 +19,12 @@ import { sendBackup, startReset } from "./resetFlow";
 import { sendNews } from "../handlers/news";
 import { CATEGORIES } from "../news/feeds";
 
-const MAIN_TEXT = "🧭 Menu\nMau ngapain?";
+const MAIN_TEXT = [
+  "🧭 Personal OS",
+  "Semua urusanmu, satu tempat.",
+  "",
+  "Pilih menu untuk melanjutkan.",
+].join("\n");
 
 interface Group {
   title: string;
@@ -101,7 +106,7 @@ const GROUPS: Record<string, Group> = {
 function mainKeyboard(): InlineKeyboard {
   return new InlineKeyboard()
     .text("➕ Catat", "m:g:catat")
-    .text("📊 Lihat", "m:g:lihat")
+    .text("📊 Ringkasan", "m:g:lihat")
     .row()
     .text("✅ Tugas", "m:g:tugas")
     .text("🎯 Goals", "m:g:goal")

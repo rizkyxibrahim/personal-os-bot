@@ -1,6 +1,7 @@
 export interface Feed {
   id: string;
   source: string;
+  // Dicoba berurutan sampai salah satu URL berhasil dibaca.
   urls: string[];
 }
 
@@ -34,6 +35,7 @@ export const CATEGORIES: Category[] = [
         "cnn-nasional",
         "CNN Indonesia",
         "https://www.cnnindonesia.com/nasional/rss",
+        "https://www.cnnindonesia.com/rss",
       ),
     ],
   },
@@ -52,6 +54,7 @@ export const CATEGORIES: Category[] = [
         "cnn-ekonomi",
         "CNN Indonesia",
         "https://www.cnnindonesia.com/ekonomi/rss",
+        "https://www.cnnindonesia.com/rss",
       ),
       feed(
         "cnbc-market",
@@ -77,9 +80,10 @@ export const CATEGORIES: Category[] = [
         "https://www.cnbcindonesia.com/tech/rss",
       ),
       feed(
-        "theverge-tech",
-        "The Verge",
-        "https://www.theverge.com/rss/tech/index.xml",
+        "techcrunch",
+        "TechCrunch",
+        "https://techcrunch.com/feed/",
+        "https://techcrunch.com/feed/atom/",
       ),
     ],
   },
@@ -90,9 +94,9 @@ export const CATEGORIES: Category[] = [
     aliases: ["global", "dunia", "internasional", "bisnis global", "world"],
     feeds: [
       feed(
-        "cna-business",
+        "cna-latest",
         "CNA",
-        "https://www.cna.id/api/v1/rss-outbound-feed?_format=xml&category=3321",
+        "https://www.cna.id/api/v1/rss-outbound-feed?_format=xml",
       ),
     ],
   },
@@ -117,11 +121,11 @@ export const CATEGORIES: Category[] = [
     aliases: ["gaming", "game", "games", "gim", "esports", "esport"],
     feeds: [
       feed(
-        "theverge-gaming",
-        "The Verge",
-        "https://www.theverge.com/rss/games/index.xml",
+        "ign",
+        "IGN",
+        "https://www.ign.com/rss/v2/articles/feed",
+        "https://feeds.feedburner.com/ign/games-all",
       ),
-      feed("ign", "IGN", "https://www.ign.com/rss/v2/articles/feed"),
     ],
   },
 ];
