@@ -22,7 +22,8 @@ const PRIORITIES: Record<string, Priority> = {
   low: "low",
 };
 
-function parseDue(raw: string): string | null {
+// "besok", "lusa", "hariini", "25/10", "25/10/2026", "2026-10-25" -> "YYYY-MM-DD"
+export function parseDue(raw: string): string | null {
   const s = raw.toLowerCase();
   const today = todayJakarta();
 

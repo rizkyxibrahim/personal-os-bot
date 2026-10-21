@@ -116,3 +116,18 @@ export async function updateTask(
     .run();
   return res.meta.changes > 0;
 }
+
+// Jumlah tugas yang diselesaikan pada satu tanggal WIB
+export async function countDoneOn(
+  db: D1Database,
+  userId: number,
+  date: string,
+): Promise<number> {
+  const row = await db
+    .prepare(
+      "SELECT COUNT(*) AS n FROM tasks WHERE user_id = ?1 AND status = 'done' AND date(completed_at, '+7 hours') = ?2",
+    )
+    .bind(userId, date)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}

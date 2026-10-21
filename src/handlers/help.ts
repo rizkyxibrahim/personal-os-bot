@@ -11,10 +11,11 @@ const MAIN = [
   "⚡ Rutin: /qr · /template · /addsub · /ceksub · /bayarsub",
   "⚖️ Hutang: /hutang · /piutang · /bayar · /cekhutang",
   "🎯 Goals: /addgoal · /save · /cekgoal",
+  "✅ Tugas: /addtask · /todo · /today · /done · /tunda",
   "",
-  "Detail dan contoh: /help transaksi, akun, kategori, budget, laporan, template, langganan, hutang, goal",
+  "Detail dan contoh: /help transaksi, akun, kategori, budget, laporan, template, langganan, hutang, goal, tugas, jadwal",
   "Dashboard: /start",
-  "🚧 Segera: tugas, berita, email, struk",
+  "🚧 Segera: berita, email, struk",
 ].join("\n");
 
 const TOPICS: Record<string, string> = {
@@ -153,6 +154,32 @@ const TOPICS: Record<string, string> = {
     "/delgoal G1 — hentikan goal (setoran tetap tercatat)",
     "",
     "Kebutuhan per bulan = sisa target ÷ jumlah bulan menuju deadline (dibulatkan ke atas).",
+  ].join("\n"),
+  tugas: [
+    "✅ Tugas",
+    "",
+    "/addtask judul @tanggal !prioritas #kategori",
+    "  /addtask Bayar listrik @besok !tinggi #rumah",
+    "  Tanggal: @hariini, @besok, @lusa, @25/10, @2026-10-25",
+    "  Prioritas: !tinggi, !sedang, !rendah",
+    "/todo — semua tugas aktif",
+    "/today — yang terlewat dan jatuh tempo hari ini",
+    "/done 3 — selesai · /deltask 3 — hapus",
+    "/tunda 3 besok — ubah tanggal",
+    "/edittask 3 @lusa !rendah — ubah judul, tanggal, prioritas, atau kategori",
+    "",
+    "Brief pagi dan review malam otomatis memuat tugas Anda.",
+  ].join("\n"),
+  jadwal: [
+    "⏰ Pesan otomatis (WIB)",
+    "",
+    "07:00 — brief pagi (saldo, pengingat, tugas)",
+    "20:30 — review tugas",
+    "21:00 — ringkasan keuangan hari ini",
+    "Tanggal 1, 08:00 — rekap bulan lalu",
+    "",
+    "Pesan bisa terlambat (paling lama sekitar 90 menit) dan tidak pernah terkirim dua kali.",
+    "Pengingat langganan memakai remind:N pada /addsub. Pengingat hutang muncul 3 hari sebelum tempo.",
   ].join("\n"),
 };
 

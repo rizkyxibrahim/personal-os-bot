@@ -1,16 +1,10 @@
 import { InputFile, type Bot } from "grammy";
 import type { Env } from "../env";
-import {
-  formatDate,
-  formatMonth,
-  parseMonthArg,
-  prevMonth,
-  todayJakarta,
-} from "../dates";
-import { rupiah } from "../format";
+import { formatDate, formatMonth, parseMonthArg, todayJakarta } from "../dates";
 import * as q from "../finance/queries";
 import * as rep from "../finance/reports";
 import { txLine } from "./finance";
+import { buildRekap } from "../services/rekap";
 
 const TYPE_LABEL = {
   in: "masuk",
@@ -18,13 +12,6 @@ const TYPE_LABEL = {
   transfer: "transfer",
 } as const;
 const USAGE_MONTH = "Bulan tidak valid. Contoh: lalu, 09/26, 09/2026, 2026-09";
-
-function delta(cur: number, prev: number): string {
-  if (prev === 0) return cur === 0 ? "sama" : "bulan sebelumnya kosong";
-  const diff = cur - prev;
-  const sign = diff > 0 ? "+" : "";
-  return `${sign}${rupiah(diff)} (${sign}${Math.round((diff / prev) * 100)}%)`;
-}
 
 // Cegah rumus spreadsheet (=, +, -, @) dan rapikan tanda kutip/koma
 function csvText(v: string | null): string {
@@ -43,64 +30,9 @@ export function registerReports(bot: Bot, env: Env): void {
 
     const month = parseMonthArg(ctx.match, todayJakarta());
     if (!month) return ctx.reply(USAGE_MONTH);
-    const prev = prevMonth(month);
 
-    const [s, p, byCat, top] = await Promise.all([
-      rep.monthSummary(db, userId, month),
-      rep.monthSummary(db, userId, prev),
-      rep.expenseByCategory(db, userId, month),
-      rep.topExpenses(db, userId, month, 5),
-    ]);
-
-    if (s.n === 0)
-      return ctx.reply(
-        `📊 Rekap ${formatMonth(month)}\n\nBelum ada transaksi.`,
-      );
-
-    const net = s.income - s.expense;
-    const lines = [
-      `📊 Rekap ${formatMonth(month)}`,
-      "",
-      `📈 Pemasukan: ${rupiah(s.income)}`,
-      `📉 Pengeluaran: ${rupiah(s.expense)}`,
-      `💵 Net: ${rupiah(net)}`,
-    ];
-    if (s.income > 0)
-      lines.push(
-        `🏦 Sisa dari pemasukan: ${Math.round((net * 100) / s.income)}%`,
-      );
-
-    if (byCat.length > 0) {
-      lines.push("", "📂 Pengeluaran per kategori");
-      for (const c of byCat.slice(0, 8)) {
-        lines.push(
-          `${c.name}: ${rupiah(c.total)} (${Math.round((c.total * 100) / s.expense)}%)`,
-        );
-      }
-      if (byCat.length > 8) {
-        const rest = byCat.slice(8).reduce((sum, c) => sum + c.total, 0);
-        lines.push(`Lainnya (${byCat.length - 8} kategori): ${rupiah(rest)}`);
-      }
-    }
-
-    if (top.length > 0) {
-      lines.push("", "🔝 Pengeluaran terbesar");
-      lines.push(...top.map((t) => `${txLine(t)} · ${formatDate(t.tx_date)}`));
-    }
-
-    lines.push("", `📆 Dibanding ${formatMonth(prev)}`);
-    if (p.n === 0) {
-      lines.push("Belum ada data bulan sebelumnya.");
-    } else {
-      lines.push(
-        `Pemasukan: ${delta(s.income, p.income)}`,
-        `Pengeluaran: ${delta(s.expense, p.expense)}`,
-      );
-    }
-
-    return ctx.reply(lines.join("\n"));
+    return ctx.reply(await buildRekap(db, userId, month));
   });
-
   bot.command(["cari", "search"], async (ctx) => {
     const userId = ctx.from?.id;
     if (userId === undefined) return;
