@@ -9,6 +9,8 @@ import { formatTask, groupTasks } from "./taskView";
 import { CATEGORIES } from "../news/feeds";
 import { ago } from "../news/format";
 import { getNews } from "../news/news";
+import { clip, listMail, UNREAD_QUERY } from "../gmail/api";
+import { getAccount } from "../gmail/store";
 
 async function balanceSection(
   env: Env,
@@ -135,6 +137,23 @@ async function newsSection(env: Env): Promise<string> {
   return [title, ...lines, "Selengkapnya: /berita"].join("\n");
 }
 
+async function emailSection(env: Env, userId: number): Promise<string> {
+  const account = await getAccount(env, userId);
+  if (!account)
+    return "📧 EMAIL\nBelum terhubung. Ketik /gmail untuk menghubungkan.";
+
+  const mails = await listMail(env, account.refreshToken, UNREAD_QUERY, 3);
+  if (mails.length === 0) return "📧 EMAIL\nTidak ada email belum dibaca. 🎉";
+
+  return [
+    "📧 EMAIL BELUM DIBACA",
+    ...mails.map(
+      (m) => `• ${clip(m.subject, 70)} (${clip(m.from, 25)} · ${ago(m.date)})`,
+    ),
+    "Semua: /unread",
+  ].join("\n");
+}
+
 // Satu bagian gagal tidak boleh merusak seluruh dashboard
 async function safe(
   label: string,
@@ -165,6 +184,7 @@ export async function buildDashboard(
         "⏰ PENGINGAT",
       ),
       safe("news", () => newsSection(env), "📰 BERITA"),
+      safe("email", () => emailSection(env, userId), "📧 EMAIL"),
       safe("tasks", () => tasksSection(env, userId, today), "✅ TUGAS"),
     ])
   ).filter((s): s is string => Boolean(s));
@@ -175,7 +195,6 @@ export async function buildDashboard(
     "",
     sections.join("\n\n"),
     "",
-    "🚧 Email: segera hadir",
     "Ketik /menu untuk tombol, atau /help untuk daftar perintah.",
   ].join("\n");
 }

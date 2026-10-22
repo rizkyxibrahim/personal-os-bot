@@ -13,14 +13,19 @@ function findCategory(arg: string): Category | undefined {
 
 function keyboard(activeId: string): InlineKeyboard {
   const kb = new InlineKeyboard();
-  CATEGORIES.forEach((c, i) => {
-    kb.text(
-      `${c.id === activeId ? "• " : ""}${c.icon} ${c.label}`,
-      `n:${c.id}`,
-    );
-    if (i % 2 === 1 && i < CATEGORIES.length - 1) kb.row();
+
+  CATEGORIES.forEach((category, index) => {
+    const active = category.id === activeId;
+    const label = `${active ? "✓ " : ""}${category.icon} ${category.label}`;
+
+    kb.text(label, `n:${category.id}`);
+
+    if (index % 2 === 1 && index < CATEGORIES.length - 1) {
+      kb.row();
+    }
   });
-  return kb;
+
+  return kb.row().text("🏠 Menu Utama", "m:menu");
 }
 
 async function buildNewsMessage(env: Env, category: Category): Promise<string> {

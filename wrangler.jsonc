@@ -14,4 +14,7 @@
   "triggers": {
     "crons": ["*/30 * * * *"],
   },
+  "vars": {
+    "PUBLIC_BASE_URL": "https://personal-os-bot.rizkyxibrahim.workers.dev",
+  },
 }
