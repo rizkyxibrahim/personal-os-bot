@@ -6,5 +6,7 @@ export interface Env {
   GOOGLE_CLIENT_SECRET: string;
   TOKEN_KEY: string;
   PUBLIC_BASE_URL: string;
+  GEMINI_API_KEY: string;
+  GEMINI_MODEL: string;
   DB: D1Database;
 }

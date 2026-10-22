@@ -40,6 +40,8 @@ import { handleTxCallback } from "./wizard/txActions";
 import { txEditFlow } from "./wizard/txEditFlow";
 import { handleNewsCallback, registerNews } from "./handlers/news";
 import { registerEmail } from "./handlers/email";
+import { registerReceipts } from "./handlers/receipts";
+import { receiptFlow } from "./wizard/receiptFlow";
 
 export function createBot(env: Env): Bot {
   const bot = new Bot(env.BOT_TOKEN);
@@ -117,6 +119,7 @@ export function createBot(env: Env): Bot {
   registerTasks(bot, env);
   registerNews(bot, env);
   registerEmail(bot, env);
+  registerReceipts(bot, env);
 
   bot.on("callback_query:data", async (ctx) => {
     const data = ctx.callbackQuery.data;

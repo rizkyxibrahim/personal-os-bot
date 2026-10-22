@@ -8,6 +8,7 @@ const MAIN = [
   "🔁 Pindah dana: /transfer 500k dari BCA ke Cash · /tarik 500k BCA",
   "✏️ Salah input? Tekan tombol Ubah/Hapus di bawah pesan konfirmasi, atau /edit · /hapus · /koreksi",
   "📊 Laporan: /rekap · /overview · /cekbudget · /saldo · /berita",
+  "🧾 Struk: kirim foto struk, lalu konfirmasi sebelum tersimpan",
   "🏠 Dashboard: /start · Batalkan proses: /batal",
   "📧 EMAIL  /inbox · /unread · /gmail · /gmailputus",
   "",
@@ -212,6 +213,17 @@ const TOPICS: Record<string, string> = {
     "Pesan bisa terlambat (paling lama sekitar 90 menit) dan tidak pernah terkirim dua kali.",
     "Pengingat langganan memakai remind:N pada /addsub. Pengingat hutang muncul 3 hari sebelum tempo.",
   ].join("\n"),
+  struk: [
+    "🧾 Struk",
+    "",
+    "Kirim foto struk (JPEG, PNG, atau WebP, maks 4 MB) ke bot.",
+    "Bot membaca toko, tanggal, total, dan item, lalu menunjukkan kartu konfirmasi. Tidak ada yang tersimpan sebelum kamu menekan ✅ Simpan.",
+    "",
+    "Kalau total tidak terbaca dengan yakin, bot menolak dan meminta catat manual.",
+    "Kalau sudah ada transaksi dengan tanggal dan nominal sama, bot memberi peringatan.",
+    "Foto tidak disimpan. Yang tersimpan hanya transaksinya.",
+    "Foto dikirim ke Google Gemini untuk dibaca. Gunakan akun berbayar kalau data struk tidak boleh dipakai untuk peningkatan produk.",
+  ].join("\n"),
 };
 
 const ALIASES: Record<string, string> = {
@@ -229,6 +241,8 @@ const ALIASES: Record<string, string> = {
   backup: "koreksi",
   transfer: "akun",
   news: "berita",
+  ocr: "struk",
+  receipt: "struk",
 };
 
 export function registerHelp(bot: Bot): void {
