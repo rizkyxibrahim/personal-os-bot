@@ -9,5 +9,6 @@ export interface Env {
   GEMINI_API_KEY: string;
   GEMINI_MODEL: string;
   GEMINI_FALLBACK_MODEL: string;
+  AUTO_APPROVE: string;
   DB: D1Database;
 }

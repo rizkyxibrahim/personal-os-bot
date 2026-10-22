@@ -1,22 +1,37 @@
 import type { Context, MiddlewareFn } from "grammy";
 import type { Env } from "../env";
 import * as users from "../users/store";
+import { sendRegistration } from "../handlers/registration";
 
-// Pemilik dan pengguna aktif boleh lanjut. Yang lain hanya boleh memakai /join.
+const fullName = (ctx: Context) =>
+  [ctx.from?.first_name, ctx.from?.last_name].filter(Boolean).join(" ") ||
+  "Pemilik";
+
 export function authorize(env: Env): MiddlewareFn<Context> {
   return async (ctx, next) => {
     const id = ctx.from?.id;
     if (id === undefined) return;
 
-    if (String(id) === env.OWNER_ID) {
-      await users.ensureOwner(env.DB, id, ctx.from?.first_name ?? "Pemilik");
-      return next();
+    let user: users.User | null = null;
+    try {
+      if (String(id) === env.OWNER_ID) {
+        await users.ensureOwner(env.DB, id, fullName(ctx));
+        return next();
+      }
+      user = await users.getUser(env.DB, id);
+    } catch (err) {
+      console.error("[auth] database belum siap", err);
+      return ctx.reply("⚠️ Bot sedang bermasalah. Coba lagi nanti.");
     }
 
-    const user = await users.getUser(env.DB, id);
     if (user?.status === "active") return next();
 
-    if (/^\/join(\s|@|$)/i.test(ctx.message?.text ?? "")) return next();
+    // Tombol pendaftaran dan persetujuan ditangani handler registration
+    if ((ctx.callbackQuery?.data ?? "").startsWith("r:")) return next();
+
+    if (/^\/start(\s|@|$)/i.test(ctx.message?.text ?? "")) {
+      return sendRegistration(ctx, env, user);
+    }
 
     if (ctx.callbackQuery) {
       try {
@@ -27,11 +42,6 @@ export function authorize(env: Env): MiddlewareFn<Context> {
       return;
     }
 
-    if (user?.status === "suspended") {
-      return ctx.reply("Akses kamu sedang dinonaktifkan oleh pemilik bot.");
-    }
-    return ctx.reply(
-      "Bot ini pribadi. Kalau kamu punya kode undangan, kirim: /join KODE",
-    );
+    return ctx.reply("Bot ini pribadi. Ketik /start untuk mendaftar.");
   };
 }

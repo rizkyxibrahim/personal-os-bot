@@ -34,7 +34,7 @@ const JOBS: Job[] = [
     name: "morning_brief",
     at: "07:00",
     period: (d) => d,
-    build: (c) => buildDashboard(c.env, c.userId, c.name),
+    build: (c) => buildDashboard(c.env, c.userId),
   },
   {
     name: "task_review",

@@ -18,5 +18,6 @@
     "PUBLIC_BASE_URL": "https://personal-os-bot.rizkyxibrahim.workers.dev",
     "GEMINI_MODEL": "gemini-3.8-flash",
     "GEMINI_FALLBACK_MODEL": "gemini-3.6-flash",
+    "AUTO_APPROVE": "false",
   },
 }

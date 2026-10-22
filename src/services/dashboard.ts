@@ -1,5 +1,11 @@
 import type { Env } from "../env";
-import { daysBetween, dueDate, formatDayLong, todayJakarta } from "../dates";
+import {
+  daysBetween,
+  dueDate,
+  formatDayLong,
+  nowJakarta,
+  todayJakarta,
+} from "../dates";
 import { rupiah } from "../format";
 import * as debts from "../finance/debts";
 import * as q from "../finance/queries";
@@ -11,6 +17,8 @@ import { ago } from "../news/format";
 import { getNews } from "../news/news";
 import { clip, listMail, UNREAD_QUERY } from "../gmail/api";
 import { getAccount } from "../gmail/store";
+import * as users from "../users/store";
+import { currentWeather, resolveLocation } from "./location";
 
 async function balanceSection(
   env: Env,
@@ -167,13 +175,29 @@ async function safe(
     return `${title}\nGagal memuat data.`;
   }
 }
+function clock(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+function greeting(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  if (h >= 4 && h < 11) return "Selamat pagi";
+  if (h >= 11 && h < 15) return "Selamat siang";
+  if (h >= 15 && h < 18) return "Selamat sore";
+  return "Selamat malam";
+}
 
 export async function buildDashboard(
   env: Env,
   userId: number,
-  name: string,
 ): Promise<string> {
   const today = todayJakarta();
+  const { minutes } = nowJakarta();
+
+  const user = await users.getUser(env.DB, userId);
+  const name = user?.name ?? "kamu";
+  const place = await resolveLocation(env.DB, userId);
+  const weather = await currentWeather(place.lat, place.lon);
 
   const sections = (
     await Promise.all([
@@ -189,9 +213,14 @@ export async function buildDashboard(
     ])
   ).filter((s): s is string => Boolean(s));
 
+  const head = [
+    `${greeting(minutes)}, ${name}! 👋`,
+    `${formatDayLong(today)} · ${clock(minutes)} WIB`,
+  ];
+  if (weather) head.push(`🌤️ ${place.label}: ${weather}`);
+
   return [
-    `Hi ${name}! 👋`,
-    formatDayLong(today),
+    ...head,
     "",
     sections.join("\n\n"),
     "",

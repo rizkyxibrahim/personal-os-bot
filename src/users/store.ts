@@ -2,7 +2,7 @@ export interface User {
   user_id: number;
   name: string;
   role: "owner" | "member";
-  status: "active" | "suspended";
+  status: "pending" | "active" | "suspended";
 }
 
 export async function getUser(
@@ -15,18 +15,49 @@ export async function getUser(
     .first<User>();
 }
 
-// Baris pemilik dibuat sekali, saat pertama kali dipakai
+// Pemilik selalu aktif. Namanya diperbarui setiap kali, supaya sapaan ikut nama Telegram terbaru
 export async function ensureOwner(
   db: D1Database,
   id: number,
   name: string,
 ): Promise<void> {
-  if (await getUser(db, id)) return;
   await db
     .prepare(
-      "INSERT INTO users (user_id, name, role, status, consent_at) VALUES (?1, ?2, 'owner', 'active', datetime('now'))",
+      `INSERT INTO users (user_id, name, role, status, consent_at) VALUES (?1, ?2, 'owner', 'active', datetime('now'))
+       ON CONFLICT (user_id) DO UPDATE SET name = excluded.name, role = 'owner', status = 'active'`,
     )
     .bind(id, name)
+    .run();
+}
+
+export async function registerPending(
+  db: D1Database,
+  id: number,
+  name: string,
+): Promise<void> {
+  await db
+    .prepare(
+      "INSERT INTO users (user_id, name, role, status, consent_at) VALUES (?1, ?2, 'member', 'pending', datetime('now')) ON CONFLICT (user_id) DO NOTHING",
+    )
+    .bind(id, name)
+    .run();
+}
+
+// true kalau benar-benar disetujui sekarang (bukan sudah diproses sebelumnya)
+export async function approve(db: D1Database, id: number): Promise<boolean> {
+  const res = await db
+    .prepare(
+      "UPDATE users SET status = 'active' WHERE user_id = ?1 AND status = 'pending'",
+    )
+    .bind(id)
+    .run();
+  return res.meta.changes > 0;
+}
+
+export async function reject(db: D1Database, id: number): Promise<void> {
+  await db
+    .prepare("DELETE FROM users WHERE user_id = ?1 AND status = 'pending'")
+    .bind(id)
     .run();
 }
 
@@ -63,55 +94,26 @@ export async function setStatus(
   return res.meta.changes > 0;
 }
 
-export async function createInvite(
+export async function setLocation(
   db: D1Database,
-  code: string,
-  createdBy: number,
+  id: number,
+  lat: number,
+  lon: number,
 ): Promise<void> {
   await db
-    .prepare(
-      "INSERT INTO invites (code, created_by, expires_at) VALUES (?1, ?2, datetime('now', '+7 days'))",
-    )
-    .bind(code, createdBy)
+    .prepare("UPDATE users SET lat = ?2, lon = ?3 WHERE user_id = ?1")
+    .bind(id, lat, lon)
     .run();
 }
 
-export type RedeemResult = "ok" | "invalid" | "expired" | "used" | "member";
-
-export async function redeemInvite(
+export async function getLocation(
   db: D1Database,
-  code: string,
-  userId: number,
-  name: string,
-): Promise<RedeemResult> {
-  if (await getUser(db, userId)) return "member";
-
-  const inv = await db
-    .prepare(
-      "SELECT used_by, expires_at > datetime('now') AS valid FROM invites WHERE code = ?1",
-    )
-    .bind(code)
-    .first<{ used_by: number | null; valid: number }>();
-  if (!inv) return "invalid";
-  if (inv.used_by !== null) return "used";
-  if (inv.valid !== 1) return "expired";
-
-  // Klaim kode dulu. Kalau dua orang mencoba bersamaan, hanya satu yang berhasil
-  const claimed = await db
-    .prepare(
-      "UPDATE invites SET used_by = ?2, used_at = datetime('now') WHERE code = ?1 AND used_by IS NULL",
-    )
-    .bind(code, userId)
-    .run();
-  if (claimed.meta.changes === 0) return "used";
-
-  await db
-    .prepare(
-      "INSERT INTO users (user_id, name, role, status, consent_at) VALUES (?1, ?2, 'member', 'active', datetime('now'))",
-    )
-    .bind(userId, name)
-    .run();
-  return "ok";
+  id: number,
+): Promise<{ lat: number | null; lon: number | null } | null> {
+  return db
+    .prepare("SELECT lat, lon FROM users WHERE user_id = ?1")
+    .bind(id)
+    .first();
 }
 
 // Menghapus semua data satu pengguna. Urutannya mengikuti ketergantungan antar tabel

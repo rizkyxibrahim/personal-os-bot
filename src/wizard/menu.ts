@@ -220,9 +220,7 @@ export async function handleMenuCallback(
       );
       return;
     case "start":
-      await ctx.reply(
-        await buildDashboard(env, userId, ctx.from?.first_name ?? "kamu"),
-      );
+      await ctx.reply(await buildDashboard(env, userId));
       return;
     case "goals":
       await ctx.reply(await buildGoalList(env.DB, userId));

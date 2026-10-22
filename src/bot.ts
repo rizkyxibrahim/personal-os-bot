@@ -44,6 +44,7 @@ import { registerEmail } from "./handlers/email";
 import { registerReceipts } from "./handlers/receipts";
 import { receiptFlow } from "./wizard/receiptFlow";
 import { registerAi } from "./handlers/ai";
+import { handleRegistrationCallback } from "./handlers/registration";
 
 export function createBot(env: Env): Bot {
   const bot = new Bot(env.BOT_TOKEN);
@@ -128,6 +129,7 @@ export function createBot(env: Env): Bot {
 
   bot.on("callback_query:data", async (ctx) => {
     const data = ctx.callbackQuery.data;
+    if (data.startsWith("r:")) return handleRegistrationCallback(ctx, env);
     if (data.startsWith("w:")) return handleFlowCallback(ctx, env);
     if (data.startsWith("p:")) return handlePickerCallback(ctx, env);
     if (data.startsWith("m:")) return handleMenuCallback(ctx, env);
