@@ -7,8 +7,6 @@ export function registerStart(bot: Bot, env: Env): void {
     const userId = ctx.from?.id;
     if (userId === undefined) return;
 
-    return ctx.reply(
-      await buildDashboard(env, userId, ctx.from?.first_name ?? "kamu"),
-    );
+    return ctx.reply(await buildDashboard(env, userId));
   });
 }
