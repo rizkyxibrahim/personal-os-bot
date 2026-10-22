@@ -21,7 +21,7 @@ const ReceiptSchema = z.object({
 export interface Receipt {
   merchant: string | null;
   date: string | null;
-  total: number; // pasti terisi kalau hasilnya ok
+  total: number;
   items: { name: string; price: number | null }[];
   category: string | null;
 }
@@ -45,6 +45,15 @@ const PROMPT = [
 
 const FAIL =
   "Struk belum bisa dibaca dengan yakin. Coba foto yang lebih terang dan lurus.";
+
+function fail(reason: string, detail: unknown = ""): Extracted {
+  console.error(
+    "[ocr]",
+    reason,
+    typeof detail === "string" ? detail : JSON.stringify(detail).slice(0, 400),
+  );
+  return { ok: false, error: FAIL };
+}
 
 // Potong per bagian supaya String.fromCharCode tidak kehabisan memori
 function toBase64(bytes: Uint8Array): string {
@@ -84,8 +93,10 @@ export async function extractReceipt(
     }),
     signal: AbortSignal.timeout(25_000),
   });
+
   if (!res.ok) {
-    console.error("[ocr] Gemini HTTP", res.status);
+    const body = await res.text();
+    console.error("[ocr] Gemini HTTP", res.status, body.slice(0, 400));
     throw new Error(`Gemini HTTP ${res.status}`);
   }
 
@@ -93,19 +104,19 @@ export async function extractReceipt(
     candidates?: { content?: { parts?: { text?: string }[] } }[];
   };
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) return { ok: false, error: FAIL };
+  if (!text) return fail("respons kosong", data);
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
-    return { ok: false, error: FAIL };
+    return fail("JSON tidak valid", text);
   }
 
   const r = ReceiptSchema.safeParse(parsed);
-  if (!r.success || r.data.total === null || r.data.confidence < 0.7) {
-    return { ok: false, error: FAIL };
-  }
+  if (!r.success) return fail("skema tidak cocok", r.error.issues);
+  if (r.data.total === null) return fail("total kosong", r.data);
+  if (r.data.confidence < 0.7) return fail("keyakinan rendah", r.data);
 
   const today = todayJakarta();
   let date = r.data.date;

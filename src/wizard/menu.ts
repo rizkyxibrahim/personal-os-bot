@@ -41,7 +41,7 @@ const GROUPS: Record<string, Group> = {
     ],
   },
   lihat: {
-    title: "📊 Lihat",
+    title: "📊 Ringkasan",
     items: [
       ["💰 Saldo", "saldo"],
       ["📊 Rekap bulan ini", "rekap"],

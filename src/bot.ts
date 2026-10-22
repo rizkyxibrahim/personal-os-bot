@@ -1,6 +1,7 @@
 import { Bot } from "grammy";
 import type { Env } from "./env";
-import { ownerOnly } from "./middleware/auth";
+import { authorize } from "./middleware/auth";
+import { registerUsers } from "./handlers/users";
 import { registerBudget } from "./handlers/budget";
 import { registerDebts } from "./handlers/debts";
 import { handleQuickEntry, registerFinance } from "./handlers/finance";
@@ -42,6 +43,7 @@ import { handleNewsCallback, registerNews } from "./handlers/news";
 import { registerEmail } from "./handlers/email";
 import { registerReceipts } from "./handlers/receipts";
 import { receiptFlow } from "./wizard/receiptFlow";
+import { registerAi } from "./handlers/ai";
 
 export function createBot(env: Env): Bot {
   const bot = new Bot(env.BOT_TOKEN);
@@ -62,6 +64,7 @@ export function createBot(env: Env): Bot {
     accountInitFlow(),
     transferFlow(),
     txEditFlow(),
+    receiptFlow(),
     adjustFlow(),
     resetFlow(),
     categoryFlow(),
@@ -81,7 +84,7 @@ export function createBot(env: Env): Bot {
     }
   });
 
-  bot.use(ownerOnly(env.OWNER_ID));
+  bot.use(authorize(env));
 
   // Perintah baru membatalkan proses tanya-jawab yang sedang berjalan (kecuali /batal sendiri)
   bot.use(async (ctx, next) => {
@@ -120,6 +123,8 @@ export function createBot(env: Env): Bot {
   registerNews(bot, env);
   registerEmail(bot, env);
   registerReceipts(bot, env);
+  registerAi(bot, env);
+  registerUsers(bot, env);
 
   bot.on("callback_query:data", async (ctx) => {
     const data = ctx.callbackQuery.data;

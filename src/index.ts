@@ -17,6 +17,7 @@ export default {
     bot ??= createBot(env);
     const handler = webhookCallback(bot, "cloudflare-mod", {
       secretToken: env.WEBHOOK_SECRET,
+      timeoutMilliseconds: 45_000, // cukup untuk OCR dengan percobaan ulang dan model cadangan
     });
     return handler(request);
   },

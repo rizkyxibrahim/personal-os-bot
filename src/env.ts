@@ -8,5 +8,6 @@ export interface Env {
   PUBLIC_BASE_URL: string;
   GEMINI_API_KEY: string;
   GEMINI_MODEL: string;
+  GEMINI_FALLBACK_MODEL: string;
   DB: D1Database;
 }

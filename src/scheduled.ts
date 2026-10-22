@@ -6,6 +6,7 @@ import { buildDashboard } from "./services/dashboard";
 import { buildDailyFinance, buildTaskReview } from "./services/digests";
 import { claim, cleanup, release } from "./services/notifications";
 import { buildRekap } from "./services/rekap";
+import { listActiveUsers } from "./users/store";
 
 interface JobContext {
   env: Env;
@@ -13,20 +14,20 @@ interface JobContext {
   name: string;
   today: string;
   period: string;
-  force: boolean; // true hanya saat pengujian lokal
+  force: boolean;
 }
 
 interface Job {
   name: string;
-  at: string; // "HH:MM" WIB
-  weekday?: number; // 0 = Minggu ... 6 = Sabtu (menurut tanggal WIB)
+  at: string;
+  weekday?: number;
   monthlyOnDay?: number;
-  period: (today: string) => string; // kunci anti-duplikat
-  build?: (c: JobContext) => Promise<string>; // pesan teks
-  deliver?: (c: JobContext, api: Api) => Promise<void>; // pengiriman khusus (mis. file)
+  period: (today: string) => string;
+  build?: (c: JobContext) => Promise<string>;
+  deliver?: (c: JobContext, api: Api) => Promise<void>;
 }
 
-const GRACE_MINUTES = 90; // lewat dari ini, pesan dianggap basi dan dilewati
+const GRACE_MINUTES = 90;
 
 const JOBS: Job[] = [
   {
@@ -62,8 +63,7 @@ const JOBS: Job[] = [
     period: (d) => d,
     deliver: async (c, api) => {
       const counts = await countData(c.env.DB, c.userId);
-      const empty = Object.values(counts).every((n) => n === 0);
-      if (empty && !c.force) return; // belum ada data, tidak perlu dicadangkan
+      if (Object.values(counts).every((n) => n === 0) && !c.force) return;
 
       const backup = await buildBackup(c.env.DB, c.userId);
       await api.sendDocument(
@@ -95,23 +95,16 @@ function isDue(job: Job, date: string, minutes: number): boolean {
   return minutes >= start && minutes < start + GRACE_MINUTES;
 }
 
-async function ownerName(api: Api, ownerId: number): Promise<string> {
+async function safeCleanup(env: Env): Promise<void> {
   try {
-    const chat = await api.getChat(ownerId);
-    return "first_name" in chat && chat.first_name ? chat.first_name : "kamu";
-  } catch {
-    return "kamu";
+    await cleanup(env.DB);
+  } catch (err) {
+    console.error("[cron] cleanup gagal", err);
   }
 }
 
 // forceJob hanya dipakai saat pengujian lokal (lewati jendela waktu dan klaim)
 export async function runScheduled(env: Env, forceJob?: string): Promise<void> {
-  const ownerId = Number(env.OWNER_ID);
-  if (!Number.isInteger(ownerId) || ownerId <= 0) {
-    console.error("[cron] OWNER_ID tidak valid");
-    return;
-  }
-
   const { date, minutes } = nowJakarta();
   const due = JOBS.filter((j) =>
     forceJob ? j.name === forceJob : isDue(j, date, minutes),
@@ -119,37 +112,35 @@ export async function runScheduled(env: Env, forceJob?: string): Promise<void> {
   console.log(
     `[cron] ${date} ${hhmm(minutes)} WIB, due: ${due.map((j) => j.name).join(", ") || "-"}`,
   );
+  if (due.length === 0) return safeCleanup(env);
 
   const api = new Api(env.BOT_TOKEN);
-  let name: string | null = null;
+  const people = await listActiveUsers(env.DB);
 
-  for (const job of due) {
-    const period = job.period(date);
-    if (!forceJob && !(await claim(env.DB, ownerId, job.name, period)))
-      continue;
+  for (const person of people) {
+    for (const job of due) {
+      const period = job.period(date);
+      if (!forceJob && !(await claim(env.DB, person.user_id, job.name, period)))
+        continue;
 
-    try {
-      name ??= await ownerName(api, ownerId);
-      const ctx: JobContext = {
-        env,
-        userId: ownerId,
-        name,
-        today: date,
-        period,
-        force: Boolean(forceJob),
-      };
-
-      if (job.deliver) await job.deliver(ctx, api);
-      else if (job.build) await api.sendMessage(ownerId, await job.build(ctx));
-    } catch (err) {
-      console.error(`[cron] ${job.name} gagal`, err);
-      if (!forceJob) await release(env.DB, ownerId, job.name, period);
+      try {
+        const ctx: JobContext = {
+          env,
+          userId: person.user_id,
+          name: person.name,
+          today: date,
+          period,
+          force: Boolean(forceJob),
+        };
+        if (job.deliver) await job.deliver(ctx, api);
+        else if (job.build)
+          await api.sendMessage(person.user_id, await job.build(ctx));
+      } catch (err) {
+        console.error(`[cron] ${job.name} untuk ${person.user_id} gagal`, err);
+        if (!forceJob) await release(env.DB, person.user_id, job.name, period);
+      }
     }
   }
 
-  try {
-    await cleanup(env.DB);
-  } catch (err) {
-    console.error("[cron] cleanup gagal", err);
-  }
+  await safeCleanup(env);
 }
