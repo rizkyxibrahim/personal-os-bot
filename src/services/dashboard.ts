@@ -179,7 +179,7 @@ function clock(minutes: number): string {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
-function greeting(minutes: number): string {
+export function greeting(minutes: number): string {
   const h = Math.floor(minutes / 60);
   if (h >= 4 && h < 11) return "Selamat pagi";
   if (h >= 11 && h < 15) return "Selamat siang";
@@ -202,13 +202,13 @@ export async function buildDashboard(
   const sections = (
     await Promise.all([
       safe("balance", () => balanceSection(env, userId, today), "💰 SALDO"),
+      safe("email", () => emailSection(env, userId), "📧 EMAIL"),
       safe(
         "reminders",
         () => remindersSection(env, userId, today),
         "⏰ PENGINGAT",
       ),
       safe("news", () => newsSection(env), "📰 BERITA"),
-      safe("email", () => emailSection(env, userId), "📧 EMAIL"),
       safe("tasks", () => tasksSection(env, userId, today), "✅ TUGAS"),
     ])
   ).filter((s): s is string => Boolean(s));

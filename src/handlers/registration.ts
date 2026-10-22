@@ -2,6 +2,8 @@ import { InlineKeyboard, type Context } from "grammy";
 import type { Env } from "../env";
 import * as q from "../finance/queries";
 import * as users from "../users/store";
+import { greeting } from "../services/dashboard";
+import { nowJakarta } from "../dates";
 
 const PRIVACY = [
   "Halo! Bot ini pribadi, tapi kamu bisa mendaftar.",
@@ -46,6 +48,21 @@ async function edit(ctx: Context, text: string): Promise<void> {
   }
 }
 
+function welcomeText(name: string): string {
+  const { minutes } = nowJakarta();
+  return [
+    `${greeting(minutes)}, ${name}! 👋`,
+    "Selamat datang di Personal OS.",
+    "",
+    "Mulai dengan tiga langkah:",
+    "1. /menu untuk semua fitur lewat tombol",
+    "2. /addaccount untuk menambah rekening atau dompet",
+    "3. out 25k makan siang untuk mencatat pengeluaran pertama",
+    "",
+    "Opsional: /lokasi agar cuaca di dashboard sesuai tempatmu.",
+  ].join("\n");
+}
+
 // Tombol: r:<aksi>[:<id>]
 export async function handleRegistrationCallback(
   ctx: Context,
@@ -81,12 +98,9 @@ export async function handleRegistrationCallback(
       await users.approve(env.DB, from.id);
       await q.ensureDefaults(env.DB, from.id);
       await ctx.api
-        .sendMessage(
-          Number(env.OWNER_ID),
-          `👤 ${fullName(ctx)} (ID ${from.id}) bergabung otomatis.`,
-        )
+        .sendMessage(from.id, welcomeText(fullName(ctx)))
         .catch(() => {});
-      return edit(ctx, "✅ Terdaftar! Ketik /menu untuk mulai.");
+      return edit(ctx, "✅ Terdaftar!");
     }
 
     await edit(
@@ -117,11 +131,9 @@ export async function handleRegistrationCallback(
         return edit(ctx, "Permintaan ini sudah diproses sebelumnya.");
       await q.ensureDefaults(env.DB, target);
       await ctx.api
-        .sendMessage(
-          target,
-          "✅ Pendaftaranmu disetujui! Ketik /menu untuk mulai.",
-        )
+        .sendMessage(from.id, welcomeText(fullName(ctx)))
         .catch(() => {});
+      return edit(ctx, "✅ Terdaftar!");
       return edit(ctx, `✅ Disetujui: ID ${target}`);
     }
 
